@@ -1,0 +1,32 @@
+# Crimson coding style. See CONTRIBUTING.md.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 100
+
+[*.{c,cc,cpp,h,hpp,inl}]
+indent_size = 4
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{sln,vcxproj,filters,props,targets}]
+indent_style = space
+indent_size = 2
+
+[*.{sh,bash}]
+end_of_line = lf
+indent_size = 2
+
+[LICENSE]
+trim_trailing_whitespace = false
+insert_final_newline = false
