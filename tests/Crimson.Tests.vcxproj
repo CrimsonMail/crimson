@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{603709FA-2272-409F-BE29-EAEC7F37C2D0}</ProjectGuid>
+    <RootNamespace>crimson</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\build\Crimson.Toolset.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(MSBuildThisFileDirectory)..\build\Crimson.Common.props" />
+  </ImportGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- So test sources can include "harness.h" and "net/scripted_stream.h"
+           regardless of which subdirectory they live in. -->
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClInclude Include="harness.h" />
+    <ClInclude Include="net\scripted_stream.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="harness.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="net\test_net_error.cpp" />
+    <ClCompile Include="net\test_socket_handle.cpp" />
+    <ClCompile Include="net\test_stream_helpers.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\core\Crimson.Core.vcxproj">
+      <Project>{F7F39E0E-A94B-4E1D-8C89-2E893919B031}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\src\platform\windows\Crimson.Platform.Windows.vcxproj">
+      <Project>{AE917164-F24D-415B-80F7-3DBB775887B7}</Project>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
