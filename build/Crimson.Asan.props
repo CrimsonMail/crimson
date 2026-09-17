@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AddressSanitizer settings, imported by Crimson.Common.props only when
+  EnableASAN=true:
+
+      msbuild Crimson.sln /p:Configuration=Debug /p:Platform=x64 /p:EnableASAN=true
+
+  MSVC's ASan is incompatible with a few defaults, so they are turned off here
+  rather than left to produce confusing link errors:
+
+    - /RTC (BasicRuntimeChecks) conflicts with ASan instrumentation.
+    - Incremental linking is unsupported with ASan.
+    - Edit-and-continue debug info is unsupported with ASan.
+
+  Nightly CI runs the full test suite under this configuration. See ADR 0001 on
+  why sanitizers carry extra weight in this project.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <PreprocessorDefinitions>CRIMSON_ASAN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <LinkIncremental>false</LinkIncremental>
+    </Link>
+  </ItemDefinitionGroup>
+  <PropertyGroup>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared build settings for every Crimson project.
+
+  Imported by all four .vcxproj files so compiler and linker policy is defined
+  exactly once. Individual projects set only their ConfigurationType, their
+  source files and their references.
+
+  Note that PlatformToolset is deliberately NOT set here. Microsoft.Cpp.Default.props
+  defaults it to $(DefaultPlatformToolset), which resolves to whatever MSVC the
+  installed Visual Studio provides. Hardcoding v143 would break on a newer
+  toolset. CI pins the toolchain by pinning the runner image instead.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup Label="CrimsonVersion">
+    <CrimsonVersionMajor>0</CrimsonVersionMajor>
+    <CrimsonVersionMinor>1</CrimsonVersionMinor>
+    <CrimsonVersionPatch>0</CrimsonVersionPatch>
+    <CrimsonVersion>$(CrimsonVersionMajor).$(CrimsonVersionMinor).$(CrimsonVersionPatch)</CrimsonVersion>
+  </PropertyGroup>
+
+  <!-- All build output lands under <repo>\x64\<Configuration>\ so the paths in
+       README and CI are stable. Intermediates are kept per-project. -->
+  <PropertyGroup Label="Layout">
+    <CrimsonRoot>$(MSBuildThisFileDirectory)..\</CrimsonRoot>
+    <OutDir>$(CrimsonRoot)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(CrimsonRoot)obj\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- C++23. MSVC has no /std:c++23 switch; /std:c++latest is the way to
+           get <expected>. See ADR 0001. -->
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+
+      <!-- Warnings are errors. /permissive- for conformance. -->
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <ConformanceMode>true</ConformanceMode>
+
+      <!-- The Windows SDK headers are not /W4-clean. Without treating angle-
+           bracket includes as external, /WX fails the build on Microsoft's
+           code and the only apparent fix is dropping /W4. -->
+      <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <SDLCheck>true</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+
+      <!-- NOMINMAX is not optional: windows.h defines min/max as macros, which
+           breaks std::min and std::numeric_limits<int>::max(). The recv/send
+           length clamp needs both. -->
+      <PreprocessorDefinitions>
+        WIN32_LEAN_AND_MEAN;
+        NOMINMAX;
+        _WIN32_WINNT=0x0A00;
+        UNICODE;
+        _UNICODE;
+        CRIMSON_VERSION_MAJOR=$(CrimsonVersionMajor);
+        CRIMSON_VERSION_MINOR=$(CrimsonVersionMinor);
+        CRIMSON_VERSION_PATCH=$(CrimsonVersionPatch);
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+
+      <AdditionalIncludeDirectories>$(CrimsonRoot)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <!-- Control Flow Guard, ASLR, DEP, high-entropy 64-bit ASLR. -->
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <ImageHasSafeExceptionHandlers>true</ImageHasSafeExceptionHandlers>
+      <AdditionalOptions>/HIGHENTROPYVA %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+
+    <Lib>
+      <TreatLibWarningAsError>true</TreatLibWarningAsError>
+    </Lib>
+  </ItemDefinitionGroup>
+
+  <!-- Debug -->
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PreprocessorDefinitions>_DEBUG;CRIMSON_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <!-- Release -->
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)Crimson.Asan.props" Condition="'$(EnableASAN)'=='true'" />
+</Project>
