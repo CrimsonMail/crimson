@@ -21,32 +21,117 @@ code. The rest is GitHub configuration, and some of it has no API.
 
 ---
 
-## Scriptable through the API
+## Runbook: creating and configuring the repository
 
-These are applied with `gh`, and each result should be checked rather than
-assumed.
+Requires the GitHub CLI, authenticated:
 
 ```
-repository        public, description, topics:
-                  email, email-client, imap, smtp, windows, cpp, open-source
-merge settings    squash only; merge commits and rebase disabled;
-                  delete branches on merge
-ruleset on main   pull request required, force pushes blocked, deletion blocked,
-                  conversation resolution required, required status checks
-                  wired to the pr.yml job names
-                  -- deliberately NO second-approval requirement yet:
-                     with one maintainer it would only teach people to bypass it
-actions           default GITHUB_TOKEN permission set to read-only
-security          secret scanning, push protection, private vulnerability
-                  reporting, Dependabot alerts
-labels            synchronized from .github/labels.yml
-issue types       Bug, Feature, Task, RFC, Research, Documentation, Refactor
-                  (organization level; these do have a REST API)
+winget install --id GitHub.cli
+gh auth login --hostname github.com --git-protocol https --web
 ```
 
-**Ordering matters.** The initial commit has to be pushed *before* the ruleset
-requiring pull requests is applied, or the first push is rejected by a rule that
-exists to protect a branch with nothing on it.
+**Order matters.** The first push has to land *before* the ruleset requiring
+pull requests exists, or it is rejected by a rule protecting a branch with
+nothing on it yet.
+
+### 1. Create and push
+
+```
+gh repo create CrimsonMail/crimson --public --source . --remote origin --push \
+  --description "A native, local-first desktop communication client for Windows."
+```
+
+### 2. Topics
+
+```
+gh repo edit CrimsonMail/crimson --add-topic email --add-topic email-client \
+  --add-topic imap --add-topic smtp --add-topic windows --add-topic cpp \
+  --add-topic open-source
+```
+
+### 3. Merge settings
+
+Squash only, so `main` carries one commit per logical change and the squash
+title becomes the changelog entry.
+
+```
+gh repo edit CrimsonMail/crimson \
+  --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false \
+  --delete-branch-on-merge --enable-wiki=false
+```
+
+### 4. Labels
+
+```
+./scripts/sync-labels.ps1                 # show what would change
+./scripts/sync-labels.ps1 -Apply          # apply it
+```
+
+### 5. Security features
+
+```
+gh api -X PATCH repos/CrimsonMail/crimson \
+  -f security_and_analysis[secret_scanning][status]=enabled \
+  -f security_and_analysis[secret_scanning_push_protection][status]=enabled
+
+gh api -X PUT repos/CrimsonMail/crimson/private-vulnerability-reporting
+```
+
+Dependabot alerts are on by default for public repositories; confirm under
+Settings → Code security.
+
+### 6. Actions token default
+
+Read-only, widened per workflow. Never `write-all`.
+
+```
+gh api -X PUT repos/CrimsonMail/crimson/actions/permissions/workflow \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=false
+```
+
+### 7. Protect `main`
+
+Do this only after the first push, and after at least one CI run has reported
+its check names — required checks are matched by name, so naming a check that
+has never run blocks every merge.
+
+```
+gh api -X POST repos/CrimsonMail/crimson/rulesets \
+  -f name='main' -f target=branch -f enforcement=active \
+  -f 'conditions[ref_name][include][]=~DEFAULT_BRANCH' \
+  -f 'rules[][type]=deletion' \
+  -f 'rules[][type]=non_fast_forward' \
+  -f 'rules[][type]=pull_request' \
+  -F 'rules[][parameters][required_approving_review_count]=0' \
+  -F 'rules[][parameters][required_review_thread_resolution]=true'
+```
+
+No second-approval requirement yet. With one maintainer it would only teach
+bypassing, which is worse than not having the rule. Add
+`required_approving_review_count=1` when there is a second person.
+
+### 8. Organization issue types
+
+These *do* have a REST API, unlike the project fields below.
+
+```
+for t in Bug Feature Task RFC Research Documentation Refactor; do
+  gh api -X POST orgs/CrimsonMail/issue-types -f name="$t"
+done
+```
+
+### Check it took
+
+```
+gh repo view CrimsonMail/crimson
+gh label list --repo CrimsonMail/crimson
+gh api repos/CrimsonMail/crimson/rulesets
+git push origin main          # should now be REJECTED
+```
+
+That last line is the real test. If a direct push to `main` succeeds, the
+ruleset is not doing anything.
 
 ---
 
