@@ -1,0 +1,56 @@
+name: CodeQL
+
+# Crimson's highest-risk code is the parsers and the buffer handling underneath
+# them, all of it hand-written C++ operating on untrusted input from the
+# network. Static analysis is enabled from the first networking commit rather
+# than once there is something to find.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze C++
+    runs-on: windows-2025
+    permissions:
+      # Only this job needs to publish results, and only these two extra scopes.
+      security-events: write
+      actions: read
+
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # github/codeql-action@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+        with:
+          languages: c-cpp
+          # security-and-quality is broader than the default security-extended,
+          # which suits a codebase where correctness bugs in a parser are
+          # security bugs.
+          queries: security-and-quality
+
+      # Not autobuild. CodeQL needs to observe the real compilation to build its
+      # database, and autobuild guesses at how to drive a hand-written solution.
+      # Invoking msbuild explicitly is both more reliable and closer to what
+      # developers actually run.
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          msbuild Crimson.sln /nologo /m /v:minimal /p:Configuration=Debug /p:Platform=x64 /t:Rebuild || exit /b 1
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+        with:
+          category: /language:c-cpp

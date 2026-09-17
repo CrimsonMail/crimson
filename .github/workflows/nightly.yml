@@ -1,0 +1,70 @@
+name: nightly
+
+# Work too slow to justify running on every pull request. Right now that means
+# AddressSanitizer; as Crimson grows it will also carry the full parser corpus,
+# fuzz seeds and long integration runs.
+on:
+  schedule:
+    # 03:00 UTC daily. GitHub may delay scheduled runs under load, which is
+    # fine: nothing here is time-critical.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sanitizers:
+    name: AddressSanitizer
+    runs-on: windows-2025
+
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Build with AddressSanitizer
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          msbuild Crimson.sln /nologo /m /v:minimal /p:Configuration=Debug /p:Platform=x64 /p:EnableASAN=true /t:Rebuild || exit /b 1
+
+      # The sanitizer runtime is a DLL that lives in the MSVC toolset
+      # directory, so the tests must run inside the developer environment or
+      # they fail to load with an unhelpful error rather than an ASan report.
+      - name: Run tests under AddressSanitizer
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          call "%GITHUB_WORKSPACE%\x64\Debug\Crimson.Tests.exe" --timeout 60 || exit /b 1
+
+  repeat:
+    name: Flake check
+    runs-on: windows-2025
+
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          msbuild Crimson.sln /nologo /m /v:minimal /p:Configuration=Debug /p:Platform=x64 || exit /b 1
+
+      # Networking tests are the ones most likely to rot into intermittent
+      # failures, and an intermittent failure that only shows up once a fortnight
+      # is far more expensive than one that shows up here. Ten consecutive runs
+      # surface timing assumptions that happen to hold on a quiet machine.
+      - name: Run the suite ten times
+        shell: cmd
+        run: |
+          for /l %%r in (1,1,10) do (
+            echo --- run %%r ---
+            call "%GITHUB_WORKSPACE%\x64\Debug\Crimson.Tests.exe" || exit /b 1
+          )

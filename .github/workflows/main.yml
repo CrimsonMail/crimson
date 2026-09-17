@@ -1,0 +1,55 @@
+name: main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.configuration }})
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          msbuild Crimson.sln /nologo /m /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 || exit /b 1
+
+      - name: Test
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          call "%GITHUB_WORKSPACE%\x64\${{ matrix.configuration }}\Crimson.Tests.exe" || exit /b 1
+
+      # Symbols are kept from trusted main builds so a crash reported against a
+      # commit can still be symbolicated later. Crash processing needs the exact
+      # matching PDBs, and they cannot be reconstructed after the fact.
+      - name: Upload binaries and symbols
+        # actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: crimson-${{ matrix.configuration }}-x64
+          path: |
+            x64/${{ matrix.configuration }}/*.exe
+            x64/${{ matrix.configuration }}/*.pdb
+          retention-days: 30
+          if-no-files-found: error

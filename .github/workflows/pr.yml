@@ -1,0 +1,58 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+
+# Read-only by default; a job widens this only where it genuinely needs to.
+# Never permissions: write-all.
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.configuration }})
+    # Pinned image, not windows-latest. The supply-chain model requires a
+    # controlled MSVC and Windows SDK, and windows-latest silently re-points to
+    # a new image with a different toolset.
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+
+    steps:
+      # Third-party actions are pinned to a full commit SHA, never a tag, since
+      # a tag can be moved to point at different code. Dependabot proposes the
+      # bumps. actions/checkout@v7.0.1:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          cl 2>&1 | findstr /C:"Version"
+          msbuild Crimson.sln /nologo /m /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 || exit /b 1
+
+      - name: Test
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          call "%GITHUB_WORKSPACE%\x64\${{ matrix.configuration }}\Crimson.Tests.exe" || exit /b 1
+
+      # Proves the layer works against something outside the process, not just
+      # against its own loopback fixture. Allowed to fail without failing the
+      # build: it depends on the runner reaching the public internet, which is
+      # not something a pull request should be blocked on.
+      - name: Smoke test against a real server
+        continue-on-error: true
+        shell: cmd
+        run: call "%GITHUB_WORKSPACE%\x64\${{ matrix.configuration }}\crimson-net-smoke.exe" example.com 80
