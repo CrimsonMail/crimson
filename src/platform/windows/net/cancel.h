@@ -15,32 +15,46 @@
 // blocking recv or partway through a 20-second connect, and something has to
 // wake it.
 //
-// WHY shutdown AND NOT closesocket. These look interchangeable and are not:
+// WHY CancelIoEx. The obvious candidates were measured rather than assumed,
+// because the folklore here is wrong:
 //
-//   shutdown(fd, SD_BOTH) from another thread is the supported escape hatch.
-//   The blocked recv returns promptly, with 0 or WSAESHUTDOWN. The descriptor
-//   is not released, so it cannot be reused underneath the blocked call.
+//   shutdown(fd, SD_BOTH) from another thread DOES NOT WORK on Windows. This is
+//   the advice usually given, and it is what the POSIX habit suggests, but it is
+//   simply untrue here: measured, shutdown returns success and the blocked recv
+//   keeps waiting, returning only when the peer eventually closes 6 seconds
+//   later. It interrupts nothing.
 //
-//   closesocket() while another thread is blocked on that socket is not safe.
-//   Pending blocking calls are cancelled with no notification, AND the SOCKET
-//   value becomes immediately available for reuse. Another thread calling
-//   socket() or accept() can be handed the same numeric value, at which point
-//   the blocked recv is reading an unrelated connection. That is silent data
-//   corruption rather than a crash, and in a mail client it means one account's
-//   bytes arriving on another account's stream.
+//   closesocket() does cancel pending calls, and is unsafe. The SOCKET value
+//   becomes immediately available for reuse, so another thread calling socket()
+//   or accept() can be handed the same numeric value while the first thread is
+//   still blocked in recv on it. That is silent cross-connection data
+//   corruption rather than a crash — in a mail client, one account's bytes
+//   arriving on another account's stream.
 //
-// So cancel() holds a mutex across the shutdown, and TcpStream::close() holds
-// the same mutex while clearing the descriptor. shutdown can therefore never
-// fire on a recycled handle. The rule that falls out of this, and which the rest
-// of Crimson must honour:
+//   CancelIoEx(handle, nullptr) works. Measured: the blocked recv returns
+//   WSAEINTR after ~212 ms, which is the 200 ms the canceller waited. It
+//   cancels pending operations without releasing the descriptor, so there is no
+//   reuse window.
+//
+// The mutex is still the correctness argument. cancel() holds it across the
+// CancelIoEx and TcpStream::close() holds it while clearing the descriptor, so
+// the cancel can never be issued against a handle the owner has already closed
+// and Windows has already handed to someone else. The rule that falls out of
+// this, and which the rest of Crimson must honour:
 //
 //     closesocket is called only by the thread that owns the stream.
 //     Any other thread may only call cancel().
 //
-// Connect is a separate problem, because shutdown does not reliably interrupt a
-// pending connect(). A handle can be created before connecting and passed to
-// TcpStream::connect, which re-checks cancel_requested() between short WSAPoll
-// slices; see connect_with_deadline in tcp_stream.cpp.
+// KNOWN RACE. CancelIoEx only cancels operations that are already pending. If a
+// cancel lands in the window between a reader checking the flag and actually
+// entering recv, there is nothing to cancel and the read blocks until the
+// SO_RCVTIMEO safety net expires. The window is a few instructions wide, and
+// readers check the flag immediately before and after the call to narrow it
+// further. Eliminating it entirely needs overlapped I/O, which Step 1 scopes
+// out; the bound in the meantime is ConnectOptions::read_timeout.
+//
+// Connect is handled differently again: it re-checks cancel_requested() between
+// short WSAPoll slices, so it needs no socket-level interruption at all.
 
 namespace crimson::net::win {
 

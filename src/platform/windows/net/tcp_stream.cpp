@@ -484,6 +484,14 @@ ReadOutcome TcpStream::read(std::span<std::byte> dst) noexcept {
         return ReadResult{0, false};
     }
 
+    // Checked before the call, not only after. CancelIoEx can only cancel an
+    // operation that is already pending, so a cancel arriving just before this
+    // point would otherwise go unnoticed until the SO_RCVTIMEO safety net
+    // expired. See the race note in cancel.h.
+    if (cancel_.cancel_requested()) {
+        return std::unexpected(NetError::cancelled(NetOp::recv));
+    }
+
     const int received = ::recv(socket_.get(), reinterpret_cast<char*>(dst.data()),
                                 clamp_to_int(dst.size()), 0);
     if (received > 0) {
@@ -491,17 +499,15 @@ ReadOutcome TcpStream::read(std::span<std::byte> dst) noexcept {
     }
 
     if (received == 0) {
-        // Orderly shutdown by the peer. A cancellation also lands here, because
-        // shutdown(SD_BOTH) from another thread ends the read the same way, so
-        // check which it was before reporting a clean end of stream.
-        if (cancel_.cancel_requested()) {
-            return std::unexpected(NetError::cancelled(NetOp::recv));
-        }
-        return ReadResult{0, true};
+        return ReadResult{0, true};  // orderly shutdown by the peer
     }
 
     const NetError error = from_wsa(NetOp::recv);  // capture FIRST
-    if (cancel_.cancel_requested()) {
+    // A cancelled read surfaces as WSAEINTR or WSA_OPERATION_ABORTED, depending
+    // on how far the operation had progressed. Report the cause rather than the
+    // symptom, so callers do not have to know which.
+    if (cancel_.cancel_requested() || error.native == WSAEINTR ||
+        error.native == WSA_OPERATION_ABORTED) {
         return std::unexpected(NetError::cancelled(NetOp::recv));
     }
     return std::unexpected(error);
@@ -515,11 +521,16 @@ WriteOutcome TcpStream::write_some(std::span<const std::byte> src) noexcept {
         return std::size_t{0};
     }
 
+    if (cancel_.cancel_requested()) {
+        return std::unexpected(NetError::cancelled(NetOp::send));
+    }
+
     const int sent = ::send(socket_.get(), reinterpret_cast<const char*>(src.data()),
                             clamp_to_int(src.size()), 0);
     if (sent == SOCKET_ERROR) {
         const NetError error = from_wsa(NetOp::send);  // capture FIRST
-        if (cancel_.cancel_requested()) {
+        if (cancel_.cancel_requested() || error.native == WSAEINTR ||
+            error.native == WSA_OPERATION_ABORTED) {
             return std::unexpected(NetError::cancelled(NetOp::send));
         }
         return std::unexpected(error);

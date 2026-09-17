@@ -66,10 +66,13 @@ void CancelHandle::cancel() const noexcept {
     if (state_->socket != INVALID_SOCKET) {
         // Holding the mutex guarantees the owner is not concurrently inside
         // closesocket, so this descriptor is still ours and cannot have been
-        // recycled. The return value is ignored deliberately: shutdown on an
-        // already-reset connection fails with WSAENOTCONN, which is the normal
-        // case when the peer got there first and is not worth reporting.
-        ::shutdown(state_->socket, SD_BOTH);
+        // recycled.
+        //
+        // The result is ignored deliberately. CancelIoEx reports
+        // ERROR_NOT_FOUND when nothing is pending, which is the ordinary case
+        // when the worker has not reached its recv yet or has already returned,
+        // and is not a failure. See the race note in cancel.h.
+        ::CancelIoEx(reinterpret_cast<HANDLE>(state_->socket), nullptr);
     }
 }
 

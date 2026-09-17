@@ -44,15 +44,18 @@
 
   <ItemGroup>
     <ClInclude Include="harness.h" />
+    <ClInclude Include="net\echo_server.h" />
     <ClInclude Include="net\scripted_stream.h" />
   </ItemGroup>
 
   <ItemGroup>
     <ClCompile Include="harness.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="net\echo_server.cpp" />
     <ClCompile Include="net\test_net_error.cpp" />
     <ClCompile Include="net\test_socket_handle.cpp" />
     <ClCompile Include="net\test_stream_helpers.cpp" />
+    <ClCompile Include="net\test_tcp_stream.cpp" />
   </ItemGroup>
 
   <ItemGroup>
