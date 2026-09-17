@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Selects the MSVC platform toolset.
+
+  Imported by every .vcxproj immediately after Microsoft.Cpp.Default.props and
+  before Microsoft.Cpp.props, which is the window in which PlatformToolset can
+  still be chosen.
+
+  Why this file exists rather than a hardcoded <PlatformToolset>v145</>:
+
+  Visual Studio 2026 ships toolset v145; Visual Studio 2022 ships v143. Pinning
+  either one breaks the other, and CI runner images do not necessarily carry
+  the same Visual Studio as a developer machine. Probing for what is actually
+  installed keeps one project file working on both.
+
+  And why not $(DefaultPlatformToolset): it does not exist in VS 2026's
+  Microsoft.Cpp.Default.props. Leaving PlatformToolset empty there does not
+  select the newest toolset — it falls through to a legacy rule keyed on
+  TargetFrameworkVersion and yields v100, producing the thoroughly misleading
+  "build tools for Visual Studio 2010 cannot be found".
+
+  Ordered oldest to newest deliberately: each assignment overwrites the last,
+  so the newest installed toolset wins. Add new ones at the bottom.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="CrimsonToolsetSelection">
+    <CrimsonToolsetDir>$(VCTargetsPath)\Platforms\$(Platform)\PlatformToolsets</CrimsonToolsetDir>
+
+    <PlatformToolset Condition="Exists('$(CrimsonToolsetDir)\v142')">v142</PlatformToolset>
+    <PlatformToolset Condition="Exists('$(CrimsonToolsetDir)\v143')">v143</PlatformToolset>
+    <PlatformToolset Condition="Exists('$(CrimsonToolsetDir)\v144')">v144</PlatformToolset>
+    <PlatformToolset Condition="Exists('$(CrimsonToolsetDir)\v145')">v145</PlatformToolset>
+  </PropertyGroup>
+
+  <!-- Fail with a message that names the actual problem, rather than letting
+       the v100 fallback send someone hunting for Visual Studio 2010. -->
+  <Target Name="CrimsonVerifyToolset" BeforeTargets="PrepareForBuild"
+          Condition="'$(PlatformToolset)' == '' or '$(PlatformToolset)' == 'v100' or '$(PlatformToolset)' == 'v90'">
+    <Error Text="No supported MSVC toolset found under $(CrimsonToolsetDir). Crimson needs Visual Studio 2022 (v143) or newer with the 'Desktop development with C++' workload; see README.md." />
+  </Target>
+</Project>

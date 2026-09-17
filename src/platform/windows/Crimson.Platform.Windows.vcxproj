@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{AE917164-F24D-415B-80F7-3DBB775887B7}</ProjectGuid>
+    <RootNamespace>crimson</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\build\Crimson.Toolset.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(MSBuildThisFileDirectory)..\..\..\build\Crimson.Common.props" />
+  </ImportGroup>
+
+  <ItemGroup>
+    <ClInclude Include="net\cancel.h" />
+    <ClInclude Include="net\net_log.h" />
+    <ClInclude Include="net\socket_handle.h" />
+    <ClInclude Include="net\win_sockets.h" />
+    <ClInclude Include="net\winsock_runtime.h" />
+    <ClInclude Include="net\wsa_error.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="net\cancel.cpp" />
+    <ClCompile Include="net\net_log.cpp" />
+    <ClCompile Include="net\winsock_runtime.cpp" />
+    <ClCompile Include="net\wsa_error.cpp" />
+  </ItemGroup>
+
+  <!-- Crimson.Core is header-only from this project's perspective today, but
+       the reference documents the dependency direction: platform depends on
+       core, never the reverse. Core does NOT reference this project, which is
+       what physically prevents core code from reaching Winsock (ADR 0005). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\Crimson.Core.vcxproj">
+      <Project>{F7F39E0E-A94B-4E1D-8C89-2E893919B031}</Project>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

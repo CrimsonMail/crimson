@@ -57,7 +57,7 @@ private:
     }
     for (const char character : value) {
         if (character == ' ' || character == '"' || character == '=' ||
-            character == '\' || character == '\r' || character == '\n') {
+            character == '\\' || character == '\r' || character == '\n') {
             return true;
         }
     }
@@ -73,9 +73,9 @@ void append_value(std::string& line, std::string_view value) {
     for (const char character : value) {
         switch (character) {
             case '"':  line.append("\\\""); break;
-            case '\': line.append("\\\\"); break;
-            case '\r': line.append("\r");  break;
-            case '\n': line.append("\n");  break;
+            case '\\': line.append("\\\\"); break;
+            case '\r': line.append("\\r");  break;
+            case '\n': line.append("\\n");  break;
             default:   line.push_back(character); break;
         }
     }
