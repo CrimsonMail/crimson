@@ -1,0 +1,23 @@
+# Crimson takes no third-party runtime libraries (ADR 0004), but GitHub Actions
+# used in CI are dependencies of the build pipeline and part of the supply
+# chain. Actions are pinned to full commit SHAs; Dependabot proposes the bumps
+# so the pins stay current instead of silently rotting.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Brussels
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "area: build"
+    groups:
+      github-owned-actions:
+        patterns:
+          - "actions/*"
+          - "github/*"

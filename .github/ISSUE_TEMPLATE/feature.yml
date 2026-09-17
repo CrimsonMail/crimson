@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest new behaviour for Crimson
+type: Feature
+labels: ["needs: design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you are not sure this is the right solution yet, consider starting in
+        [Discussions → Ideas](https://github.com/orgs/CrimsonMail/discussions)
+        instead. Issues work best once there is a concrete proposal.
+
+        Large or architectural proposals become an RFC rather than a feature
+        issue — see [docs/rfcs](https://github.com/CrimsonMail/crimson/tree/main/docs/rfcs).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the problem rather than the solution. This is the most important field.
+    validations:
+      required: true
+  - type: textarea
+    id: desired
+    attributes:
+      label: What behaviour would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How do you handle this today?
+      description: Current workaround, or how another client does it.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Screenshots or mockups
+      description: Optional, but useful for anything that affects the interface.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for this idea
+          required: true

@@ -1,0 +1,36 @@
+name: Documentation
+description: Something in the documentation is wrong, unclear or missing
+type: Documentation
+labels: ["area: documentation"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Where?
+      description: File path, URL, or the document and section.
+      placeholder: docs/architecture/networking.md, "Ownership rules"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - Incorrect — it says something untrue
+        - Unclear — I could not follow it
+        - Missing — it should exist and does not
+        - Outdated — it describes older behaviour
+        - Typo or formatting
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the problem?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording
+      description: Optional. Pull requests for documentation are very welcome.

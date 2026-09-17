@@ -1,0 +1,75 @@
+name: Performance problem
+description: Crimson is slow, unresponsive, or uses too much memory or disk
+type: Bug
+labels: ["performance", "needs: reproduction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Performance reports are most useful with numbers and a sense of scale —
+        a client that is slow with 200 messages and one that is slow with
+        200,000 usually have entirely different causes.
+  - type: input
+    id: version
+    attributes:
+      label: Crimson version
+      placeholder: 0.1.0, or commit a1b2c3d
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2 (build 26100.1234)
+    validations:
+      required: true
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: What kind of problem is it?
+      options:
+        - Slow or unresponsive interface
+        - Slow synchronization
+        - Slow search
+        - Slow startup
+        - High memory use
+        - High CPU use
+        - Excessive disk use
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is slow, and how slow?
+      description: Measured numbers if you have them — "search takes about 8 seconds" beats "search is slow".
+    validations:
+      required: true
+  - type: textarea
+    id: scale
+    attributes:
+      label: Scale
+      description: |
+        Roughly how much mail is involved? Number of accounts, messages in the
+        affected mailbox, total store size on disk.
+      placeholder: |
+        2 accounts, ~85,000 messages in the Gmail Inbox, store around 12 GB
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware
+      description: CPU, RAM, and whether the mail store is on an SSD or a hard disk.
+      placeholder: Ryzen 7 5800X, 32 GB, store on NVMe SSD
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Did it used to be faster? Did it start after a particular version?

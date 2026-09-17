@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/CrimsonMail/crimson/security/advisories/new
+    about: Report privately. Never open a public issue for a security problem.
+  - name: Ask a question
+    url: https://github.com/orgs/CrimsonMail/discussions/categories/q-a
+    about: Questions about using or building Crimson.
+  - name: Suggest an idea
+    url: https://github.com/orgs/CrimsonMail/discussions/categories/ideas
+    about: Early-stage ideas, before they are a concrete proposal.
+  - name: Development discussion
+    url: https://github.com/orgs/CrimsonMail/discussions/categories/development
+    about: Architecture, protocol and implementation discussion.

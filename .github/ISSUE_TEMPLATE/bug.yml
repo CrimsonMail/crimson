@@ -1,0 +1,110 @@
+name: Bug report
+description: Something in Crimson behaves incorrectly
+type: Bug
+labels: ["needs: reproduction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this.
+
+        **If this is a security problem — anything that could expose mail,
+        credentials or tokens — please close this form** and report it privately
+        through the [Security tab](https://github.com/CrimsonMail/crimson/security/advisories/new)
+        instead.
+
+        Please do not paste real message contents, addresses or tokens into this
+        form. It is public.
+  - type: input
+    id: version
+    attributes:
+      label: Crimson version
+      description: Shown in About Crimson. For a self-built copy, give the commit hash.
+      placeholder: 0.1.0, or commit a1b2c3d
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Run `winver`, or Settings → System → About.
+      placeholder: Windows 11 24H2 (build 26100.1234)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the actual behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Number the steps. If you cannot reproduce it reliably, say so — that is useful information too.
+      placeholder: |
+        1. Open the Inbox
+        2. Select a message with an attachment
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Does it happen every time?
+      options:
+        - Every time
+        - Often, but not always
+        - Rarely
+        - Happened once
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Mail provider
+      description: Which kind of account is affected? Select all that apply.
+      multiple: true
+      options:
+        - Gmail
+        - Outlook / Microsoft
+        - Generic IMAP
+        - Other
+        - Not account-specific
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Crimson's logs redact credentials, but please read through them before
+        pasting and remove anything personal.
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag images here if they help. Blur or crop anything private.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else — when it started, what changed, workarounds you found.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem
+          required: true
+        - label: This is not a security vulnerability
+          required: true
