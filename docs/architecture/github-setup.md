@@ -69,10 +69,18 @@ gh repo edit CrimsonMail/crimson \
 
 ### 5. Security features
 
+Nested fields go in as JSON. `gh api -f` flattens keys, so bracket notation
+like `-f a[b]=c` does not reliably produce a nested object.
+
 ```
-gh api -X PATCH repos/CrimsonMail/crimson \
-  -f security_and_analysis[secret_scanning][status]=enabled \
-  -f security_and_analysis[secret_scanning_push_protection][status]=enabled
+gh api -X PATCH repos/CrimsonMail/crimson --input - <<'JSON'
+{
+  "security_and_analysis": {
+    "secret_scanning": { "status": "enabled" },
+    "secret_scanning_push_protection": { "status": "enabled" }
+  }
+}
+JSON
 
 gh api -X PUT repos/CrimsonMail/crimson/private-vulnerability-reporting
 ```
@@ -96,30 +104,56 @@ Do this only after the first push, and after at least one CI run has reported
 its check names — required checks are matched by name, so naming a check that
 has never run blocks every merge.
 
+The `rules` array cannot be expressed with `-f` flags; send JSON.
+
 ```
-gh api -X POST repos/CrimsonMail/crimson/rulesets \
-  -f name='main' -f target=branch -f enforcement=active \
-  -f 'conditions[ref_name][include][]=~DEFAULT_BRANCH' \
-  -f 'rules[][type]=deletion' \
-  -f 'rules[][type]=non_fast_forward' \
-  -f 'rules[][type]=pull_request' \
-  -F 'rules[][parameters][required_approving_review_count]=0' \
-  -F 'rules[][parameters][required_review_thread_resolution]=true'
+gh api -X POST repos/CrimsonMail/crimson/rulesets --input - <<'JSON'
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["squash"]
+      }
+    }
+  ]
+}
+JSON
 ```
 
 No second-approval requirement yet. With one maintainer it would only teach
-bypassing, which is worse than not having the rule. Add
-`required_approving_review_count=1` when there is a second person.
+bypassing, which is worse than not having the rule. Raise
+`required_approving_review_count` to 1 when there is a second person.
+
+Required status checks are deliberately absent from this ruleset. They are
+matched by check name, so adding one before that check has ever reported blocks
+every merge with no obvious cause. Add them once the PR workflow has run at
+least once and the names are known, either in the UI or by including a
+`required_status_checks` rule.
 
 ### 8. Organization issue types
 
-These *do* have a REST API, unlike the project fields below.
+These have a REST API, unlike the project fields below.
 
 ```
 for t in Bug Feature Task RFC Research Documentation Refactor; do
-  gh api -X POST orgs/CrimsonMail/issue-types -f name="$t"
+  gh api -X POST orgs/CrimsonMail/issue-types -f name="$t" -F is_enabled=true
 done
 ```
+
+If this returns 404 or 422, the endpoint shape has moved; set them under
+Organization settings → Planning instead. It is seven fields entered once.
 
 ### Check it took
 
