@@ -53,7 +53,19 @@ Windows 11 SDK and AddressSanitizer.
 winget install --id Microsoft.VisualStudio.Community --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.NativeDesktop --includeRecommended"
 ```
 
-From an **x64 Native Tools Command Prompt for VS 2026**:
+From an ordinary command prompt — the scripts locate Visual Studio themselves,
+so no special developer prompt is needed:
+
+```
+scripts\build.cmd                  Debug
+scripts\build.cmd Release
+scripts\build.cmd Debug asan       with AddressSanitizer
+
+scripts\test.cmd                   all tests
+scripts\test.cmd Debug tcp_stream  only matching tests
+```
+
+Or drive MSBuild directly from an **x64 Native Tools Command Prompt**:
 
 ```
 msbuild Crimson.sln /p:Configuration=Debug /p:Platform=x64
@@ -61,6 +73,12 @@ x64\Debug\Crimson.Tests.exe
 ```
 
 Crimson builds with `/W4 /WX`, so any compiler warning fails the build.
+
+To watch the transport layer work against a real server:
+
+```
+x64\Debug\crimson-net-smoke.exe example.com 80
+```
 
 ## Repository layout
 
