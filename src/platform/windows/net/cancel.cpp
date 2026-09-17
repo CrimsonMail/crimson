@@ -18,7 +18,8 @@ struct CancelState {
     // and Windows has already handed to someone else.
     std::mutex mutex;
 
-    // Guarded by `mutex`. INVALID_SOCKET once the owner has closed it.
+    // Guarded by `mutex`. INVALID_SOCKET before a socket is attached and again
+    // once the owner has taken it back.
     SOCKET socket = INVALID_SOCKET;
 
     // Readable without the mutex, so the connect loop can poll it cheaply
@@ -26,12 +27,26 @@ struct CancelState {
     std::atomic<bool> requested{false};
 };
 
+CancelHandle make_cancel_handle() {
+    return CancelHandle{std::make_shared<CancelState>()};
+}
+
 namespace detail {
 
-std::shared_ptr<CancelState> make_cancel_state(std::uintptr_t socket) {
-    auto state = std::make_shared<CancelState>();
-    state->socket = static_cast<SOCKET>(socket);
-    return state;
+bool attach_cancel_socket(CancelState& state, std::uintptr_t socket) noexcept {
+    const std::lock_guard<std::mutex> guard{state.mutex};
+    if (state.requested.load(std::memory_order_acquire)) {
+        // Cancelled between creating the socket and attaching it. Report the
+        // race so the caller abandons this candidate rather than connecting.
+        return false;
+    }
+    state.socket = static_cast<SOCKET>(socket);
+    return true;
+}
+
+void detach_cancel_socket(CancelState& state) noexcept {
+    const std::lock_guard<std::mutex> guard{state.mutex};
+    state.socket = INVALID_SOCKET;
 }
 
 std::uintptr_t take_cancel_socket(CancelState& state) noexcept {
@@ -48,8 +63,8 @@ void CancelHandle::cancel() const noexcept {
         return;
     }
 
-    // Publish the flag first. A worker polling between poll slices should see
-    // the request even if it never reaches a blocking recv.
+    // Publish the flag first, so a connect loop polling between poll slices
+    // observes the request even if no socket is currently attached.
     state_->requested.store(true, std::memory_order_release);
 
     const std::lock_guard<std::mutex> guard{state_->mutex};

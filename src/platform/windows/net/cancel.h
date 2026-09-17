@@ -8,11 +8,12 @@
 #include <cstdint>
 #include <memory>
 
-// Interrupting a worker blocked in recv, from another thread.
+// Interrupting a connection from another thread.
 //
-// Step 1 does not need full cancellation, but it must not foreclose it. When a
-// user quits Crimson or cancels a sync, a worker may be parked in a blocking
-// recv, and something has to wake it.
+// Step 1 does not need a full cancellation framework, but it must not foreclose
+// one. When a user quits Crimson or cancels a sync, a worker may be parked in a
+// blocking recv or partway through a 20-second connect, and something has to
+// wake it.
 //
 // WHY shutdown AND NOT closesocket. These look interchangeable and are not:
 //
@@ -25,47 +26,35 @@
 //   value becomes immediately available for reuse. Another thread calling
 //   socket() or accept() can be handed the same numeric value, at which point
 //   the blocked recv is reading an unrelated connection. That is silent data
-//   corruption, not a crash, and in a mail client it means one account's bytes
-//   arriving on another account's stream.
+//   corruption rather than a crash, and in a mail client it means one account's
+//   bytes arriving on another account's stream.
 //
-// So: cancel() holds a mutex across the shutdown, and TcpStream::close() holds
+// So cancel() holds a mutex across the shutdown, and TcpStream::close() holds
 // the same mutex while clearing the descriptor. shutdown can therefore never
-// fire on a recycled handle. The rule that falls out of this, and which the
-// rest of Crimson must honour:
+// fire on a recycled handle. The rule that falls out of this, and which the rest
+// of Crimson must honour:
 //
 //     closesocket is called only by the thread that owns the stream.
 //     Any other thread may only call cancel().
 //
-// Note that shutdown does NOT reliably interrupt a pending connect(). The
-// connect path re-checks cancel_requested() between short WSAPoll slices
-// instead; see tcp_stream.cpp.
+// Connect is a separate problem, because shutdown does not reliably interrupt a
+// pending connect(). A handle can be created before connecting and passed to
+// TcpStream::connect, which re-checks cancel_requested() between short WSAPoll
+// slices; see connect_with_deadline in tcp_stream.cpp.
 
 namespace crimson::net::win {
 
 // Defined in cancel.cpp. Left incomplete here so this header needs no Windows
-// headers and a future sync worker in core/ can hold a CancelHandle without
-// acquiring a dependency on Winsock.
+// headers, which means a future sync worker in core/ can hold a CancelHandle
+// without acquiring a dependency on Winsock.
 struct CancelState;
-
-namespace detail {
-
-// Socket descriptors cross this boundary as uintptr_t rather than SOCKET,
-// which keeps the header SDK-free. SOCKET is UINT_PTR, so this is exact and
-// not a lossy reinterpretation.
-[[nodiscard]] std::shared_ptr<CancelState> make_cancel_state(std::uintptr_t socket);
-
-// Atomically removes the descriptor from the shared state and returns it, so
-// the caller can close it knowing cancel() can no longer see it. Returns the
-// invalid-socket sentinel if it was already taken.
-[[nodiscard]] std::uintptr_t take_cancel_socket(CancelState& state) noexcept;
-
-}  // namespace detail
 
 // A copyable, thread-safe token for interrupting one connection.
 //
-// Cheap to copy and safe to call from any thread, including after the stream
-// has been closed, in which case cancel() is a no-op. A default-constructed
-// handle is inert.
+// Cheap to copy and safe to call from any thread, including after the stream has
+// been closed, in which case cancel() is a no-op. A default-constructed handle
+// is inert, so code that does not care about cancellation can ignore it
+// entirely.
 class CancelHandle {
 public:
     CancelHandle() noexcept = default;
@@ -84,9 +73,50 @@ public:
 
     [[nodiscard]] bool valid() const noexcept { return state_ != nullptr; }
 
+    // For the platform implementation. CancelState is incomplete outside
+    // cancel.cpp, so this is inert to any other caller.
+    [[nodiscard]] const std::shared_ptr<CancelState>& state() const noexcept {
+        return state_;
+    }
+
 private:
     std::shared_ptr<CancelState> state_;
 };
+
+// Creates a handle that is not yet bound to a socket.
+//
+// Intended to be created before connecting, so a controlling thread can cancel
+// an in-flight connect:
+//
+//     const CancelHandle cancel = make_cancel_handle();
+//     // hand `cancel` to the UI, then on this thread:
+//     auto stream = TcpStream::connect(endpoint, options, cancel);
+[[nodiscard]] CancelHandle make_cancel_handle();
+
+namespace detail {
+
+// Socket descriptors cross this boundary as uintptr_t rather than SOCKET, which
+// keeps the header free of Windows types. SOCKET is UINT_PTR, so the
+// representation is exact rather than a lossy reinterpretation.
+
+// Binds a socket to the handle so cancel() can reach it.
+//
+// Returns false if cancellation was already requested, which lets the connect
+// loop abandon a socket it has only just created instead of waiting out the
+// deadline on a connection nobody wants any more.
+[[nodiscard]] bool attach_cancel_socket(CancelState& state,
+                                        std::uintptr_t socket) noexcept;
+
+// Unbinds without closing, for a candidate socket that failed to connect. The
+// caller still owns and must close the descriptor.
+void detach_cancel_socket(CancelState& state) noexcept;
+
+// Atomically removes the descriptor and returns it, so the caller can close it
+// knowing cancel() can no longer see it. Returns the invalid-socket sentinel if
+// it was already taken.
+[[nodiscard]] std::uintptr_t take_cancel_socket(CancelState& state) noexcept;
+
+}  // namespace detail
 
 }  // namespace crimson::net::win
 

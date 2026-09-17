@@ -81,7 +81,9 @@
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <DataExecutionPrevention>true</DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>true</ImageHasSafeExceptionHandlers>
+      <!-- No /SAFESEH: it is an x86-only mitigation and the linker rejects it
+           outright on x64, where the equivalent unwind information is part of
+           the PE format and always present. -->
       <AdditionalOptions>/HIGHENTROPYVA %(AdditionalOptions)</AdditionalOptions>
     </Link>
 
