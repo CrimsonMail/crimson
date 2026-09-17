@@ -25,8 +25,11 @@ code. The rest is GitHub configuration, and some of it has no API.
 
 Requires the GitHub CLI, authenticated:
 
-```
+```powershell
 winget install --id GitHub.cli
+```
+
+```powershell
 gh auth login --hostname github.com --git-protocol https --web
 ```
 
@@ -36,17 +39,14 @@ nothing on it yet.
 
 ### 1. Create and push
 
-```
-gh repo create CrimsonMail/crimson --public --source . --remote origin --push \
-  --description "A native, local-first desktop communication client for Windows."
+```powershell
+gh repo create CrimsonMail/crimson --public --source . --remote origin --push --description "A native, local-first desktop communication client for Windows."
 ```
 
 ### 2. Topics
 
-```
-gh repo edit CrimsonMail/crimson --add-topic email --add-topic email-client \
-  --add-topic imap --add-topic smtp --add-topic windows --add-topic cpp \
-  --add-topic open-source
+```powershell
+gh repo edit CrimsonMail/crimson --add-topic email --add-topic email-client --add-topic imap --add-topic smtp --add-topic windows --add-topic cpp --add-topic open-source
 ```
 
 ### 3. Merge settings
@@ -54,36 +54,42 @@ gh repo edit CrimsonMail/crimson --add-topic email --add-topic email-client \
 Squash only, so `main` carries one commit per logical change and the squash
 title becomes the changelog entry.
 
-```
-gh repo edit CrimsonMail/crimson \
-  --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false \
-  --delete-branch-on-merge --enable-wiki=false
+```powershell
+gh repo edit CrimsonMail/crimson --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false --delete-branch-on-merge --enable-wiki=false
 ```
 
 ### 4. Labels
 
+Dry run first; it changes nothing without `-Apply`.
+
+```powershell
+.\scripts\sync-labels.ps1
 ```
-./scripts/sync-labels.ps1                 # show what would change
-./scripts/sync-labels.ps1 -Apply          # apply it
+
+```powershell
+.\scripts\sync-labels.ps1 -Apply
 ```
 
 ### 5. Security features
 
-Nested fields go in as JSON. `gh api -f` flattens keys, so bracket notation
-like `-f a[b]=c` does not reliably produce a nested object.
+Nested fields go in as JSON. `gh api -f` flattens keys, so bracket notation like
+`-f a[b]=c` does not reliably produce a nested object.
 
+Commands here are PowerShell, since that is the shell on a Windows-first
+project. PowerShell has no heredoc, so JSON bodies are piped in as a
+single-quoted string — single quotes stop PowerShell interpolating, and the
+double quotes inside are left alone.
+
+```powershell
+'{"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"enabled"}}}' | gh api -X PATCH repos/CrimsonMail/crimson --input -
 ```
-gh api -X PATCH repos/CrimsonMail/crimson --input - <<'JSON'
-{
-  "security_and_analysis": {
-    "secret_scanning": { "status": "enabled" },
-    "secret_scanning_push_protection": { "status": "enabled" }
-  }
-}
-JSON
 
+```powershell
 gh api -X PUT repos/CrimsonMail/crimson/private-vulnerability-reporting
 ```
+
+For a longer body, a PowerShell here-string (`@'` … `'@`, with the closing
+delimiter at column zero) is more readable and works the same way.
 
 Dependabot alerts are on by default for public repositories; confirm under
 Settings → Code security.
@@ -92,10 +98,8 @@ Settings → Code security.
 
 Read-only, widened per workflow. Never `write-all`.
 
-```
-gh api -X PUT repos/CrimsonMail/crimson/actions/permissions/workflow \
-  -f default_workflow_permissions=read \
-  -F can_approve_pull_request_reviews=false
+```powershell
+gh api -X PUT repos/CrimsonMail/crimson/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
 ```
 
 ### 7. Protect `main`
@@ -106,8 +110,8 @@ has never run blocks every merge.
 
 The `rules` array cannot be expressed with `-f` flags; send JSON.
 
-```
-gh api -X POST repos/CrimsonMail/crimson/rulesets --input - <<'JSON'
+```powershell
+@'
 {
   "name": "main",
   "target": "branch",
@@ -129,8 +133,11 @@ gh api -X POST repos/CrimsonMail/crimson/rulesets --input - <<'JSON'
     }
   ]
 }
-JSON
+'@ | gh api -X POST repos/CrimsonMail/crimson/rulesets --input -
 ```
+
+The closing `'@` must be at column zero, on its own line. Indenting it is a
+PowerShell parse error.
 
 No second-approval requirement yet. With one maintainer it would only teach
 bypassing, which is worse than not having the rule. Raise
@@ -146,10 +153,10 @@ least once and the names are known, either in the UI or by including a
 
 These have a REST API, unlike the project fields below.
 
-```
-for t in Bug Feature Task RFC Research Documentation Refactor; do
-  gh api -X POST orgs/CrimsonMail/issue-types -f name="$t" -F is_enabled=true
-done
+```powershell
+foreach ($t in 'Bug','Feature','Task','RFC','Research','Documentation','Refactor') {
+  gh api -X POST orgs/CrimsonMail/issue-types -f name=$t -F is_enabled=true
+}
 ```
 
 If this returns 404 or 422, the endpoint shape has moved; set them under
@@ -157,11 +164,18 @@ Organization settings → Planning instead. It is seven fields entered once.
 
 ### Check it took
 
-```
+```powershell
 gh repo view CrimsonMail/crimson
+```
+
+```powershell
 gh label list --repo CrimsonMail/crimson
-gh api repos/CrimsonMail/crimson/rulesets
-git push origin main          # should now be REJECTED
+```
+
+Then confirm the ruleset actually bites. This push must be **rejected**:
+
+```powershell
+git push origin main
 ```
 
 That last line is the real test. If a direct push to `main` succeeds, the
@@ -181,7 +195,7 @@ Status field**. The columns below have to be created by hand.
 Create an organization project named **Crimson Development**, then set the
 Status field options, in this order:
 
-```
+```text
 Triage        new, not yet assessed
 Backlog       accepted, not scheduled
 Ready         scoped, ready to be picked up
@@ -214,7 +228,7 @@ Finally, under the project's workflows, enable:
 
 Organization settings → Planning:
 
-```
+```text
 Priority     P0 Critical, P1 High, P2 Normal, P3 Low
 Effort       XS, S, M, L, XL
 Start date   date
@@ -227,7 +241,7 @@ Triage sets Priority; reporters are deliberately never asked for it.
 
 Enable Discussions on the organization, then create:
 
-```
+```text
 Announcements   announcement format
 General         open-ended
 Ideas           before something is a concrete proposal
@@ -252,7 +266,7 @@ contact to the profile, or amend that line, before inviting contributors.
 
 From the strategy's own "what not to configure yet" list, plus a few more:
 
-```
+```powershell
 merge queue                 needs several merges a day to be worth anything
 CODEOWNERS                  needs more than one owner
 teams                       needs more than one member
