@@ -44,11 +44,6 @@ bool attach_cancel_socket(CancelState& state, std::uintptr_t socket) noexcept {
     return true;
 }
 
-void detach_cancel_socket(CancelState& state) noexcept {
-    const std::lock_guard<std::mutex> guard{state.mutex};
-    state.socket = INVALID_SOCKET;
-}
-
 std::uintptr_t take_cancel_socket(CancelState& state) noexcept {
     const std::lock_guard<std::mutex> guard{state.mutex};
     const SOCKET taken = state.socket;

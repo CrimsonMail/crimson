@@ -107,10 +107,6 @@ namespace detail {
 [[nodiscard]] bool attach_cancel_socket(CancelState& state,
                                         std::uintptr_t socket) noexcept;
 
-// Unbinds without closing, for a candidate socket that failed to connect. The
-// caller still owns and must close the descriptor.
-void detach_cancel_socket(CancelState& state) noexcept;
-
 // Atomically removes the descriptor and returns it, so the caller can close it
 // knowing cancel() can no longer see it. Returns the invalid-socket sentinel if
 // it was already taken.

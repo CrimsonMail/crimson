@@ -7,6 +7,7 @@
 #include "platform/windows/net/net_log.h"
 #include "platform/windows/net/wsa_error.h"
 
+#include <chrono>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -118,8 +119,16 @@ std::expected<std::vector<ResolvedAddress>, NetError> resolve(const Endpoint& en
     // would take.
     hints.ai_flags = AI_NUMERICSERV;
 
+    // Resolution is timed because it is a common and easily misattributed
+    // source of connection latency: a slow or unreachable resolver looks
+    // exactly like a slow server from the outside. Step 1 §24 asks for this.
+    const auto resolve_started = std::chrono::steady_clock::now();
+
     ADDRINFOW* raw = nullptr;
     const int status = ::GetAddrInfoW(host.c_str(), service.c_str(), &hints, &raw);
+    const auto resolve_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - resolve_started)
+                                .count();
     if (status != 0) {
         // GetAddrInfoW reports through its return value, so there is no
         // last-error slot to race with here.
@@ -127,7 +136,8 @@ std::expected<std::vector<ResolvedAddress>, NetError> resolve(const Endpoint& en
         log_event(LogLevel::warn, "dns_failed",
                   {{"host", endpoint.host},
                    {"port", std::to_string(endpoint.port)},
-                   {"code", symbolic_name(status)}});
+                   {"code", symbolic_name(status)},
+                   {"elapsed_ms", std::to_string(resolve_ms)}});
         return std::unexpected(error);
     }
     const AddrInfoPtr list{raw};
@@ -160,7 +170,8 @@ std::expected<std::vector<ResolvedAddress>, NetError> resolve(const Endpoint& en
     log_event(LogLevel::info, "dns_resolved",
               {{"host", endpoint.host},
                {"port", std::to_string(endpoint.port)},
-               {"candidates", std::to_string(candidates.size())}});
+               {"candidates", std::to_string(candidates.size())},
+               {"elapsed_ms", std::to_string(resolve_ms)}});
 
     return candidates;
 }
