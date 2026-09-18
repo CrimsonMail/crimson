@@ -1,0 +1,146 @@
+name: Release
+
+# Builds a release from a version tag and stops at a DRAFT.
+#
+#   push tag v0.2.0
+#     -> verify the tag matches the version in build/Crimson.Common.props
+#     -> clean Release build, full test suite
+#     -> package binaries and debug symbols separately
+#     -> SPDX SBOM generated from the binaries themselves
+#     -> SHA-256 checksums
+#     -> build-provenance and SBOM attestations
+#     -> draft GitHub release with generated notes
+#
+# A person publishes the draft. The supply-chain model's rule is draft, attach
+# everything, verify, then publish — never publish and replace assets later.
+# With immutable releases enabled, publishing then locks the tag and assets.
+#
+# Not yet here, deliberately: Authenticode signing. It needs a code-signing
+# certificate, and the private key must live somewhere stronger than an
+# ordinary repository secret. The slot is marked below.
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build release
+    runs-on: windows-2025
+    permissions:
+      contents: write      # create the draft release
+      id-token: write      # obtain a Sigstore certificate for the attestations
+      attestations: write  # store the attestations
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A tag that disagrees with the version compiled into the binaries would
+      # publish mislabelled software, so this runs before anything is built.
+      # The tag is read from GITHUB_REF_NAME, set by the runner, rather than
+      # interpolated into the script.
+      - name: Verify the tag matches the project version
+        shell: pwsh
+        run: |
+          $props = Get-Content -Raw build/Crimson.Common.props
+          $parts = foreach ($name in 'Major', 'Minor', 'Patch') {
+            if ($props -notmatch "<CrimsonVersion$name>(\d+)<") { throw "CrimsonVersion$name not found" }
+            $Matches[1]
+          }
+          $expected = 'v' + ($parts -join '.')
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "'$tag' is not a release tag" }
+          $base = ($tag -split '-', 2)[0]
+          if ($base -ne $expected) { throw "Tag $tag does not match version $expected in build/Crimson.Common.props" }
+          $version = $tag.TrimStart('v')
+          "VERSION=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "PRERELEASE=$(if ($tag.Contains('-')) { 'true' } else { 'false' })" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "Releasing $tag"
+
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          msbuild Crimson.sln /nologo /m /v:minimal /p:Configuration=Release /p:Platform=x64 /t:Rebuild || exit /b 1
+
+      - name: Test
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+            call "%%i\VC\Auxiliary\Build\vcvarsall.bat" x64 || exit /b 1
+          )
+          call "%GITHUB_WORKSPACE%\x64\Release\Crimson.Tests.exe" || exit /b 1
+
+      # SIGNING GOES HERE, before packaging, once a code-signing certificate
+      # exists: sign every shipped .exe with signtool against a key held in a
+      # managed signing service or HSM, then verify the signatures. Everything
+      # after this point then describes signed binaries.
+
+      # Binaries and symbols are separate downloads. Users need the first;
+      # crash analysis needs the second, and it must be the exact matching
+      # build, which is why symbols are archived from the same run.
+      - name: Package
+        shell: pwsh
+        run: |
+          $bin = 'x64/Release'
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $exes = Get-ChildItem $bin -Filter *.exe | Where-Object Name -ne 'Crimson.Tests.exe'
+          if (-not $exes) { throw 'No executables to package' }
+          $pdbs = $exes | ForEach-Object { Join-Path $bin "$($_.BaseName).pdb" } | Where-Object { Test-Path $_ }
+          Compress-Archive -Path (@($exes.FullName) + 'LICENSE') -DestinationPath "dist/crimson-$env:VERSION-windows-x64.zip"
+          Compress-Archive -Path $pdbs -DestinationPath "dist/crimson-$env:VERSION-windows-x64-symbols.zip"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Generate SBOM
+        shell: pwsh
+        run: ./scripts/generate-sbom.ps1 -BinaryDirectory x64/Release -Version $env:VERSION -Output "dist/crimson-$env:VERSION.spdx.json"
+
+      # sha256sum format, LF line endings, so `sha256sum -c SHA256SUMS.txt`
+      # works on Linux as well as the PowerShell check SECURITY.md documents.
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem dist -File | Sort-Object Name | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          [IO.File]::WriteAllText("$PWD/dist/SHA256SUMS.txt", (($lines -join "`n") + "`n"))
+          Get-Content dist/SHA256SUMS.txt
+
+      # Both actions are composites that pin their own internal dependency,
+      # actions/attest, by full SHA, so this pin covers the whole chain.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.zip
+            dist/*.spdx.json
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: dist/crimson-${{ env.VERSION }}-windows-x64.zip
+          sbom-path: dist/crimson-${{ env.VERSION }}.spdx.json
+
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $arguments = @(
+            'release', 'create', $env:GITHUB_REF_NAME, (Get-ChildItem dist -File).FullName,
+            '--draft', '--verify-tag', '--generate-notes',
+            '--title', "Crimson $env:VERSION"
+          )
+          if ($env:PRERELEASE -eq 'true') { $arguments += '--prerelease' }
+          gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed' }
+          "Draft created. Verify the assets, then publish it by hand."

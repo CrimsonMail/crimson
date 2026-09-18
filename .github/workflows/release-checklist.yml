@@ -1,0 +1,114 @@
+name: Release checklist
+
+# Creates the plan for a release: a parent issue "Release Crimson X.Y.Z" with
+# each step as a real sub-issue, so every step can be assigned, discussed and
+# closed on its own and progress shows on the parent.
+#
+# Run from the Actions tab, or:
+#   gh workflow run release-checklist.yml -f version=0.2.0
+#
+# Steps that do not apply yet (signing, installer, updater) are listed in the
+# parent's body rather than created as sub-issues nobody can complete.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to prepare, without the leading v (for example 0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Create release plan
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const version = String(context.payload.inputs.version || '').trim().replace(/^v/, '');
+            if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
+              core.setFailed(`"${version}" is not a version like 0.2.0 or 0.2.0-beta.1.`);
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const title = `Release Crimson ${version}`;
+
+            // One plan per version. Re-running must not duplicate it.
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'release', per_page: 100,
+            });
+            const duplicate = open.find((issue) => issue.title === title);
+            if (duplicate) {
+              core.setFailed(`#${duplicate.number} is already the open plan for ${version}.`);
+              return;
+            }
+
+            // Issue types are organization configuration that may not exist
+            // yet. The plan matters more than its type.
+            async function createIssue(fields, type) {
+              try {
+                return await github.rest.issues.create({ owner, repo, ...fields, type });
+              } catch (error) {
+                if (error.status !== 422) throw error;
+                core.warning(`Could not set issue type ${type} (${error.message}); creating without a type.`);
+                return await github.rest.issues.create({ owner, repo, ...fields });
+              }
+            }
+
+            const tag = `v${version}`;
+            const STEPS = [
+              ['Freeze the release scope', 'Confirm what is in, move anything unfinished to the next release, and check the milestone.'],
+              ['Draft the changelog', `Run \`./scripts/draft-changelog.ps1 -Tag ${version}\`, edit the wording, and merge it into \`CHANGELOG.md\` through a pull request.`],
+              ['Confirm CI is green on the release commit', 'The `main` workflow, the latest nightly including AddressSanitizer, and CodeQL, all passing on the commit being tagged.'],
+              ['Resolve open security findings', 'No unresolved high or critical CodeQL, secret-scanning or Dependabot alerts. Anything under embargo stays out of public notes.'],
+              ['Tag the release', `Push \`${tag}\` on the release commit. That runs \`release.yml\`, which fails if the tag disagrees with the version in \`build/Crimson.Common.props\`.`],
+              ['Verify the draft release', `Check the checksums against \`SHA256SUMS.txt\` and run \`gh attestation verify\` on every artifact, as \`SECURITY.md\` documents.`],
+              ['Edit the release notes', 'Turn the generated notes into something a user can skim: highlights, fixes, known issues, upgrade notes.'],
+              ['Publish the release', 'Publish the draft. With immutable releases enabled, the tag and assets are locked from here.'],
+              ['Verify the published release', 'Download from the public release page and repeat the checksum and attestation checks against what users actually receive.'],
+            ];
+
+            const parent = await createIssue({
+              title,
+              labels: ['release'],
+              body: [
+                `Plan for releasing Crimson ${version}. Each step below is a sub-issue; close them in order.`,
+                '',
+                'Not yet applicable, and so not listed as steps:',
+                '- **Signing** — no code-signing certificate exists yet; binaries are unsigned.',
+                '- **Installer and upgrade path** — there is no installer yet.',
+                '- **Updater** — there is no updater yet.',
+                '',
+                'Created by `release-checklist.yml`.',
+              ].join('\n'),
+            }, 'Task');
+
+            for (const [index, [stepTitle, detail]] of STEPS.entries()) {
+              const child = await createIssue({
+                title: `${version}: ${stepTitle}`,
+                labels: ['release'],
+                body: `Step ${index + 1} of ${STEPS.length} for #${parent.data.number}.\n\n${detail}`,
+              }, 'Task');
+
+              // The sub-issue API takes the child's database id, not its
+              // issue number. Passing the number is the usual mistake, and it
+              // fails with a confusing "not found".
+              await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues', {
+                owner, repo,
+                issue_number: parent.data.number,
+                sub_issue_id: child.data.id,
+              });
+            }
+
+            core.info(`Created #${parent.data.number} with ${STEPS.length} sub-issues.`);
+            await core.summary
+              .addHeading(`Release plan for ${version}`, 3)
+              .addLink(`#${parent.data.number} ${title}`, parent.data.html_url)
+              .write();
