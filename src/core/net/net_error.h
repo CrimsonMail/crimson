@@ -38,6 +38,11 @@ enum class NetOp : std::uint8_t {
     close,
     getname,
     ioctl,
+    credentials,    // acquiring the TLS credential handle
+    tls_handshake,  // negotiating a TLS session, including certificate checks
+    tls_encrypt,    // sealing application data into a TLS record
+    tls_decrypt,    // opening a received TLS record
+    tls_shutdown,   // sending close_notify
 };
 
 // Where the code in `native` came from, and hence how to interpret it.
@@ -48,6 +53,7 @@ enum class NetOp : std::uint8_t {
 enum class NetCat : std::uint8_t {
     wsa,        // native is a WSAGetLastError() code
     gai,        // native is a GetAddrInfoW() return value
+    sspi,       // native is a SECURITY_STATUS from Schannel (an HRESULT)
     timeout,    // our own deadline expired; native is unset
     cancelled,  // a CancelHandle was triggered; native is unset
     truncated,  // peer closed before the required bytes arrived
@@ -114,6 +120,11 @@ static_assert(sizeof(NetError) <= 8);
         case NetOp::close:    return "close";
         case NetOp::getname:  return "getname";
         case NetOp::ioctl:    return "ioctl";
+        case NetOp::credentials:   return "credentials";
+        case NetOp::tls_handshake: return "tls_handshake";
+        case NetOp::tls_encrypt:   return "tls_encrypt";
+        case NetOp::tls_decrypt:   return "tls_decrypt";
+        case NetOp::tls_shutdown:  return "tls_shutdown";
     }
     return "unknown";
 }
@@ -122,6 +133,7 @@ static_assert(sizeof(NetError) <= 8);
     switch (cat) {
         case NetCat::wsa:       return "wsa";
         case NetCat::gai:       return "gai";
+        case NetCat::sspi:      return "sspi";
         case NetCat::timeout:   return "timeout";
         case NetCat::cancelled: return "cancelled";
         case NetCat::truncated: return "truncated";

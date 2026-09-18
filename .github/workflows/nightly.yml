@@ -59,8 +59,15 @@ jobs:
       # failures, and an intermittent failure that only shows up once a fortnight
       # is far more expensive than one that shows up here. Ten consecutive runs
       # surface timing assumptions that happen to hold on a quiet machine.
+      # Network tests are skipped here. This job hunts for timing flakes in
+      # Crimson's own code; ten rounds of handshakes against public servers
+      # would mostly measure those servers, and one bad minute at badssl.com
+      # would open a CI-health issue about a problem that is not Crimson's.
+      # The sanitizer job above and every pull request still run them.
       - name: Run the suite ten times
         shell: cmd
+        env:
+          CRIMSON_SKIP_NETWORK_TESTS: "1"
         run: |
           for /l %%r in (1,1,10) do (
             echo --- run %%r ---

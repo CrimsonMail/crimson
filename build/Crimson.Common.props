@@ -76,7 +76,16 @@
            library has neither getaddrinfo nor WSAPoll. Declared here so
            the dependency is visible in the build system rather than
            hidden in a #pragma comment inside a header. -->
-      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- secur32.lib: SSPI, through which Schannel is used for TLS.
+           crypt32.lib: reading the server certificate's names for diagnostics.
+           normaliz.lib: IdnToAscii, so an internationalised hostname is
+           verified in the ASCII (punycode) form certificates use. (Not
+           spelled out here: XML comments may not contain two hyphens in a
+           row, which that form begins with.) Its import library is
+           normaliz.lib, not kernel32.lib, despite IdnToAscii being declared
+           in winnls.h alongside kernel32 functions.
+           All are Windows components, not third-party libraries (ADR 0004). -->
+      <AdditionalDependencies>ws2_32.lib;secur32.lib;crypt32.lib;normaliz.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <!-- Control Flow Guard, ASLR, DEP, high-entropy 64-bit ASLR. -->
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>

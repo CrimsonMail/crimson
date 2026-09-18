@@ -3,9 +3,9 @@
 The transport layer: what it provides, the rules it enforces, and why it is
 shaped the way it is.
 
-This layer knows nothing about email. It resolves names, opens TCP connections
-and moves bytes. No IMAP, no SMTP, no message parsing appears anywhere below
-`src/protocols/`.
+This layer knows nothing about email. It resolves names, opens TCP connections,
+secures them with TLS and moves bytes. No IMAP, no SMTP, no message parsing
+appears anywhere below `src/protocols/`.
 
 ---
 
@@ -19,10 +19,11 @@ and moves bytes. No IMAP, no SMTP, no message parsing appears anywhere below
                  |
         +--------+--------+
         v                 v
-     TcpStream        TlsStream     (Step 2)
+     TcpStream        TlsStream     (Schannel)
                           |
                           v
-                      TcpStream
+                     any ByteStream  <- TcpStream in production;
+                                        FragmentingStream in tests
 ```
 
 `ByteStream` has four methods: `read`, `write_some`, `shutdown_send`, `close`.
@@ -38,6 +39,57 @@ what will let the IMAP tokenizer and its tests compile without the Windows SDK.
 
 See [ADR 0007](../decisions/0007-byte-stream-abstraction.md) for why this is a
 runtime interface and not a template.
+
+---
+
+## TLS
+
+`TlsStream` is Schannel, reached through SSPI, behind the same `ByteStream`.
+[ADR 0010](../decisions/0010-schannel-for-tls.md) covers the design and
+[ADR 0011](../decisions/0011-certificate-validation-delegated-to-schannel.md)
+the trust decision.
+
+```cpp
+crimson::net::win::TlsCredentials::create()  // once, shared by every connection
+crimson::net::win::TlsStream::connect(endpoint, credentials, options, cancel)
+crimson::net::win::TlsStream::wrap(std::move(existing_stream), credentials, {hostname})
+```
+
+`wrap` is the primitive, because STARTTLS upgrades a connection that already
+exists. `connect` is TCP followed by `wrap`.
+
+**Protocol floor.** TLS 1.2. SSL 3.0, TLS 1.0 and TLS 1.1 are on a disable-list,
+so TLS 1.3 — and anything newer Windows adds — is used automatically.
+
+**Trust.** Schannel validates the chain, the Windows trust store, the hostname
+and revocation. Crimson never requests manual validation. Revocation soft-fails
+when the information cannot be fetched, and hard-fails when a certificate is
+known to be revoked. `is_certificate_error()` separates a rejected certificate
+from a network failure, so the interface can say which.
+
+**Credentials are shared.** Create one `TlsCredentials` and pass it to every
+connection. Schannel keys its session cache on the credential handle, so a
+credential per connection would disable resumption.
+
+**Records are atomic.** `write_some` encrypts at most one record and writes all
+of it before returning. A torn record cannot be resumed; the peer would reject
+every byte after it.
+
+**Ending a connection.**
+
+| What happens | `read` returns | `info().closed_without_notify` |
+|---|---|---|
+| Peer sends close_notify | `{n, eof=true}` — possibly with final data | `false` |
+| Peer closes TCP on a record boundary, no close_notify | `{0, eof=true}`, logged at `warn` | `true` |
+| Peer closes TCP mid-record | `NetCat::truncated` error | — |
+
+The middle row is not an error, because many real servers close that way, but
+it is visible. A protocol that knows where its data ends — IMAP does — can treat
+it as fine; one that relies on the stream's end cannot.
+
+**Diagnostics.** `info()` after the handshake reports the protocol, cipher suite
+and the certificate's subject and issuer. The logging rule is unchanged: metadata
+only, never plaintext and never ciphertext.
 
 ---
 
@@ -117,6 +169,12 @@ All measured on Windows 11 25H2, build 26200.
 | A refused loopback connection is instant | **False.** ~2,030 ms, uniformly across ports 1, 9, 47821 and 59999 |
 | `WSAPoll` reports a failed connect | True on this build — `revents = POLLWRNORM｜POLLERR｜POLLHUP` |
 | `$(DefaultPlatformToolset)` selects the newest MSVC | **False** on VS 2026; it does not exist there, and the fallback resolves to `v100` |
+| Including `<schannel.h>` provides `SCH_CREDENTIALS` | **False.** Only with `SCHANNEL_USE_BLACKLISTS` defined first, and then it also needs `UNICODE_STRING` from `<winternl.h>`. `win_security.h` owns this |
+| `IdnToAscii` links from `kernel32.lib` | **False.** Unresolved external until `normaliz.lib` is added |
+| `SEC_I_RENEGOTIATE` from `DecryptMessage` means renegotiation | **Not under TLS 1.3.** It is how Schannel surfaces a NewSessionTicket; `example.com` sent one before any data |
+| A TLS 1.0- or 1.1-only server is refused with one predictable code | **Depends on the machine.** `SEC_E_ALGORITHM_MISMATCH` here; `SEC_E_ILLEGAL_MESSAGE` on GitHub's Windows Server 2025 runner. The server answers in TLS 1.0 if offered a CBC suite it can use, and sends a handshake_failure alert if not, so the local cipher list decides. Refused either way |
+| Soft-fail revocation flags also let revoked certificates through | **False.** `revoked.badssl.com` fails with `CRYPT_E_REVOKED` |
+| Connecting to an IP address fails certificate name validation | **Not at a CDN.** With no name to send as SNI, the server aborts before sending a certificate: `SEC_E_ILLEGAL_MESSAGE`. It still fails, which is the point |
 
 ---
 
@@ -225,12 +283,26 @@ tested against an in-memory replay stream with no socket and no network. The
 `ReadResult{bytes, eof}` shape exists for the same step, because
 `DecryptMessage` can return application data and close_notify together.
 
+*How it turned out.* The prediction held: `byte_stream.h`, the stream helpers and
+`tcp_stream.*` did not change. The testing went further than an in-memory replay.
+A `FragmentingStream` between `TlsStream` and a real `TcpStream` delivers one byte
+per read and per write, so a genuine handshake with a genuine server arrives in
+more than a thousand pieces. That exercises the incomplete-record and
+extra-bytes paths far harder than a recording could, without Crimson needing a
+TLS server of its own. Offline tests cover what needs no server: a peer that
+does not speak TLS, and one that closes immediately.
+
 ---
 
 ## What this layer deliberately does not do
 
-No TLS, no protocol parsing, no HTTP, no proxies, no UDP, no DNS caching, no
+No protocol parsing, no HTTP, no proxies, no UDP, no DNS caching, no
 connection pooling, no IOCP, no thread pool, no retry policy, no telemetry.
+
+On the TLS side: no client certificates, no ALPN, and no way yet to accept a
+certificate Schannel rejected. STARTTLS itself is not here either — the
+`STARTTLS` command belongs to IMAP and SMTP — but `TlsStream::wrap` is what
+those protocols will call once the server agrees.
 
 The operating system already caches DNS; a second cache would immediately raise
 questions about TTLs, negative caching, VPN transitions and Wi-Fi changes for no
@@ -239,3 +311,4 @@ has yet asked for.
 
 The test for whether this layer is finished is not whether it is complete in
 some abstract sense. It is whether Schannel can wrap it without redesign.
+Step 2 answered that: it could.
