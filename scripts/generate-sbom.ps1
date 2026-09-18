@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Generates an SPDX 2.3 SBOM describing the binaries in a Crimson build.

@@ -6,8 +6,8 @@
     Crimson's changelog is generated from merged pull request metadata at
     release time, not maintained by hand (the changelog specification's
     "Model B"). This asks GitHub for the release notes it would generate for
-    the tag — which follow the categories in .github/release.yml, keyed on the
-    `changelog:` labels that pr-metadata.yml requires — and rewrites them into
+    the tag - which follow the categories in .github/release.yml, keyed on the
+    `changelog:` labels that pr-metadata.yml requires - and rewrites them into
     Keep a Changelog form.
 
     It prints the section. It changes nothing: paste it at the top of
