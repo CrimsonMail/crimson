@@ -382,12 +382,37 @@ can be grouped by once it exists; until then Group by offers only the built-in
 fields.
 
 ```text
-Priority        single select   P0 Critical (Red), P1 High (Orange), P2 Normal (Blue), P3 Low (Gray)
+Priority        single select   P0 Critical, P1 High, P2 Normal, P3 Low
 Effort          single select   XS, S, M, L, XL
 Start date      date
 Target date     date
 Target release  single select   one option per planned release, e.g. 0.1.0
 ```
+
+The organization may already have some of these — it came with a Priority
+field whose options were Urgent, High, Medium and Low. Rename existing options
+with **⋯ → Edit** rather than creating fields beside them. A **public** project can only add issue fields whose
+visibility is public, so set each field's visibility while there; the project's
+field picker otherwise reports that none are available. Target release is a
+project field — release planning belongs to this project, not the organization.
+
+Option descriptions appear in group headers and value pickers, which keeps
+triage consistent:
+
+| Option | Colour | Description |
+|---|---|---|
+| P0 Critical | Red | Lost or corrupted mail, exposed credentials, or Crimson unusable. Fix now, patch release |
+| P1 High | Orange | Breaks a common task for many users. Next release |
+| P2 Normal | Blue | Worth doing, scheduled normally. Most issues belong here |
+| P3 Low | Gray | Polish or edge cases. When convenient, or a good first contribution |
+| XS | Gray | Under an hour |
+| S | Gray | An afternoon |
+| M | Gray | A few days |
+| L | Gray | A week or two |
+| XL | Yellow | Too big to schedule. Split into sub-issues first |
+
+Priority cools from red like Status does; Effort stays neutral, except that XL
+is a warning and shares Blocked's yellow.
 
 Triage sets Priority; reporters are deliberately never asked for it.
 
