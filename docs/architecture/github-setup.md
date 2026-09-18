@@ -414,6 +414,16 @@ triage consistent:
 Priority cools from red like Status does; Effort stays neutral, except that XL
 is a warning and shares Blocked's yellow.
 
+**Pin to issues** decides which issue types show a field on the issue page; the
+project can use it regardless. Pin Priority to every type and to issues without
+a type, since anything can need one before it is typed. Pin Effort to every type
+except RFC — the work an RFC leads to gets its own issues and its own effort.
+Leave the dates unpinned: they are set by dragging in the Roadmap view.
+
+Pinning lists only types that exist, so create the issue types from step 8
+first. The documentation form sets `type: Documentation`, and without that type
+its issues arrive untyped.
+
 Triage sets Priority; reporters are deliberately never asked for it.
 
 **Views.** Rename the existing tab to Triage, and add the rest with **+ New
