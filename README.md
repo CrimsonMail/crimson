@@ -84,7 +84,8 @@ x64\Debug\crimson-net-smoke.exe --tls example.com 443
 
 The TLS tests talk to public servers, including deliberately broken ones at
 badssl.com. To run the suite offline, set `CRIMSON_SKIP_NETWORK_TESTS=1`; those
-tests are then reported as skipped rather than passed.
+tests are then reported as skipped rather than passed. A badssl.com test is also
+skipped, with the reason, when that service is having an outage.
 
 ## Repository layout
 

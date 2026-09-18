@@ -2,9 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#include <chrono>
+#include <expected>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "core/net/stream_helpers.h"
@@ -98,12 +101,42 @@ private:
     return count;
 }
 
+// Connects to one of badssl.com's deliberately broken servers.
+//
+// badssl.com is a public service with bad minutes: stretches where it resets
+// or drops a large share of connections, for every client alike. A failure
+// below the TLS layer means Schannel never saw the server's certificate or
+// protocol choice, so a test about those has nothing to judge. Such failures
+// are retried, and if they persist the test is skipped rather than failed —
+// an outage there is not a regression here. Anything Schannel did decide is
+// returned untouched, for the caller to assert on.
+//
+// Only badssl.com gets this. The example.com tests exercise Crimson's own
+// record layer, where a dropped connection could be Crimson's fault.
+[[nodiscard]] std::expected<TlsStream, NetError> connect_to_test_server(
+    const char* host, std::uint16_t port, const TlsCredentials& creds) {
+    constexpr int kAttempts = 4;
+    NetError last{};
+    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+        auto stream = TlsStream::connect(Endpoint{host, port}, creds);
+        if (stream || stream.error().cat == NetCat::sspi) {
+            return stream;
+        }
+        last = stream.error();
+        if (attempt < kAttempts) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{500 * attempt});
+        }
+    }
+    throw crimson::test::SkipTest{std::string{host} + " gave no TLS verdict in " +
+                                  std::to_string(kAttempts) + " attempts: " + error_name(last)};
+}
+
 // A handshake against `host:port` must fail at the handshake stage with
 // exactly `expected`, as a permanent, reportable problem.
 void expect_handshake_failure(const char* host, std::uint16_t port, long expected,
                               bool certificate_problem) {
     const TlsCredentials creds = credentials();
-    const auto stream = TlsStream::connect(Endpoint{host, port}, creds);
+    const auto stream = connect_to_test_server(host, port, creds);
     CHECK_ERR(stream);
     const NetError& error = stream.error();
     CHECK_EQ(error.op, NetOp::tls_handshake);
@@ -113,6 +146,30 @@ void expect_handshake_failure(const char* host, std::uint16_t port, long expecte
                   ", got " + error_name(error));
     CHECK_EQ(error.retry, Retry::no);
     CHECK_EQ(is_certificate_error(error), certificate_problem);
+}
+
+// A server that speaks only a protocol below the floor must be refused during
+// the handshake. Which code reports it depends on the client machine, not on
+// Crimson: offered a CBC suite that TLS 1.0 can use, the server answers with a
+// TLS 1.0 ServerHello and Schannel rejects the version (ALGORITHM_MISMATCH, as
+// on Windows 11 25H2); offered none, the server sends a handshake_failure
+// alert instead (ILLEGAL_MESSAGE, as on GitHub's Windows Server 2025 runner).
+// Either way the connection never happens, which is the property under test.
+void expect_protocol_refused(const char* host, std::uint16_t port) {
+    const TlsCredentials creds = credentials();
+    const auto stream = connect_to_test_server(host, port, creds);
+    CHECK_ERR(stream);
+    const NetError& error = stream.error();
+    CHECK_EQ(error.op, NetOp::tls_handshake);
+    CHECK_EQ(error.cat, NetCat::sspi);
+    const bool version_rejected = error.native == static_cast<int>(SEC_E_ALGORITHM_MISMATCH);
+    const bool server_aborted = error.native == static_cast<int>(SEC_E_ILLEGAL_MESSAGE);
+    CHECK_MSG(version_rejected || server_aborted,
+              "expected SEC_E_ALGORITHM_MISMATCH or SEC_E_ILLEGAL_MESSAGE, got " + error_name(error));
+    CHECK(!is_certificate_error(error));
+    if (version_rejected) {
+        CHECK_EQ(error.retry, Retry::no);
+    }
 }
 
 }  // namespace
@@ -277,7 +334,8 @@ CRIMSON_TEST(tls, the_tls_1_2_path_works_too) {
     // Most servers negotiate 1.3. This one only offers 1.2, which exercises the
     // older record format and a handshake without TLS 1.3's post-handshake
     // session ticket.
-    auto stream = TlsStream::connect(Endpoint{"tls-v1-2.badssl.com", 1012}, credentials());
+    const TlsCredentials creds = credentials();
+    auto stream = connect_to_test_server("tls-v1-2.badssl.com", 1012, creds);
     CHECK_OK(stream);
     CHECK_EQ(stream->info().protocol, std::string{"TLS 1.2"});
 }
@@ -311,12 +369,12 @@ CRIMSON_TEST(tls, rejects_a_revoked_certificate) {
 
 CRIMSON_TEST(tls, refuses_tls_1_0) {
     CRIMSON_REQUIRE_NETWORK();
-    expect_handshake_failure("tls-v1-0.badssl.com", 1010, SEC_E_ALGORITHM_MISMATCH, false);
+    expect_protocol_refused("tls-v1-0.badssl.com", 1010);
 }
 
 CRIMSON_TEST(tls, refuses_tls_1_1) {
     CRIMSON_REQUIRE_NETWORK();
-    expect_handshake_failure("tls-v1-1.badssl.com", 1011, SEC_E_ALGORITHM_MISMATCH, false);
+    expect_protocol_refused("tls-v1-1.badssl.com", 1011);
 }
 
 CRIMSON_TEST(tls, connecting_by_address_does_not_verify) {

@@ -94,10 +94,11 @@ Retry classify_sspi(long status) noexcept {
         // The record stream went wrong in transit, or the session state did.
         // A fresh connection is the only thing that can help.
         //
-        // SEC_E_ILLEGAL_MESSAGE is ambiguous: it is also what a server's
-        // protocol_version alert produces when it refuses every protocol
-        // Crimson offers, and then retrying cannot help. The sync engine's
-        // backoff bounds the cost of the misclassification.
+        // SEC_E_ILLEGAL_MESSAGE is ambiguous: it is also how Schannel reports
+        // a fatal alert from a server refusing the handshake outright — a
+        // TLS 1.0-only server that shares no cipher suite with this machine,
+        // or a CDN given no SNI — and then retrying cannot help. The sync
+        // engine's backoff bounds the cost of the misclassification.
         case SEC_E_ILLEGAL_MESSAGE:
         case SEC_E_DECRYPT_FAILURE:
         case SEC_E_ENCRYPT_FAILURE:

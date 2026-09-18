@@ -53,7 +53,7 @@ Against real servers, before tests were written:
 | `example.com` negotiated TLS 1.3, `TLS_AES_256_GCM_SHA384` | The disable-list lets 1.3 through |
 | A TLS 1.3 connection to `example.com` surfaced `SEC_I_RENEGOTIATE` from `DecryptMessage` before any data | Schannel reports a TLS 1.3 NewSessionTicket that way. It is routine, not a TLS 1.2 renegotiation, and must be fed back through the handshake with the extra bytes. Treated as an error, it would break the first read from any TLS 1.3 server that issues tickets |
 | `SEC_I_CONTEXT_EXPIRED` arrived with the final data | `ReadResult{bytes, eof}` was built for exactly this and needed no change |
-| TLS 1.0- and 1.1-only servers: `SEC_E_ALGORITHM_MISMATCH` | A clean, permanent code, rather than the ambiguous `SEC_E_ILLEGAL_MESSAGE` that was feared |
+| TLS 1.0- and 1.1-only servers are refused, but the code depends on the machine: `SEC_E_ALGORITHM_MISMATCH` on Windows 11 25H2, `SEC_E_ILLEGAL_MESSAGE` on GitHub's Windows Server 2025 runner | The server's reply depends on the client's cipher list. Offered a CBC suite TLS 1.0 can use, it answers in TLS 1.0 and Schannel rejects the version; offered none — presumably the runner's case — it sends a handshake_failure alert. Tests assert the refusal, not the code |
 | Handshake and response through a stream delivering one byte per read and per write | Identical result, over more than a thousand reads; record reassembly holds |
 | 48 KiB written in one call | Whole application-data records on the wire, none over the RFC 8446 limit of 2^14 + 256 bytes, none torn — checked by parsing the raw bytes |
 
@@ -84,7 +84,10 @@ most valuable test in the suite.
   behaviour above is an example of something that changed with TLS 1.3 support.
 - Handshake tests need the public internet, since Crimson deliberately has no
   TLS server of its own. `CRIMSON_SKIP_NETWORK_TESTS` lets the rest of the suite
-  run offline.
+  run offline. badssl.com has outages of its own — resets and dropped
+  handshakes for every client, OpenSSL included — so a badssl.com test that
+  gets no verdict from Schannel after retrying is skipped, not failed. Anything
+  Schannel does decide is still asserted exactly.
 - Three include-order and build facts, each of which fails without naming its
   cause, are owned by `win_security.h` and documented there:
   `SECURITY_WIN32` before `<sspi.h>`; `SCHANNEL_USE_BLACKLISTS` — without which

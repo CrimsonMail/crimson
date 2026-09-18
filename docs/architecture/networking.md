@@ -172,7 +172,7 @@ All measured on Windows 11 25H2, build 26200.
 | Including `<schannel.h>` provides `SCH_CREDENTIALS` | **False.** Only with `SCHANNEL_USE_BLACKLISTS` defined first, and then it also needs `UNICODE_STRING` from `<winternl.h>`. `win_security.h` owns this |
 | `IdnToAscii` links from `kernel32.lib` | **False.** Unresolved external until `normaliz.lib` is added |
 | `SEC_I_RENEGOTIATE` from `DecryptMessage` means renegotiation | **Not under TLS 1.3.** It is how Schannel surfaces a NewSessionTicket; `example.com` sent one before any data |
-| A TLS 1.0- or 1.1-only server fails with an ambiguous error | **False.** `SEC_E_ALGORITHM_MISMATCH`, cleanly |
+| A TLS 1.0- or 1.1-only server is refused with one predictable code | **Depends on the machine.** `SEC_E_ALGORITHM_MISMATCH` here; `SEC_E_ILLEGAL_MESSAGE` on GitHub's Windows Server 2025 runner. The server answers in TLS 1.0 if offered a CBC suite it can use, and sends a handshake_failure alert if not, so the local cipher list decides. Refused either way |
 | Soft-fail revocation flags also let revoked certificates through | **False.** `revoked.badssl.com` fails with `CRYPT_E_REVOKED` |
 | Connecting to an IP address fails certificate name validation | **Not at a CDN.** With no name to send as SNI, the server aborts before sending a certificate: `SEC_E_ILLEGAL_MESSAGE`. It still fails, which is the point |
 

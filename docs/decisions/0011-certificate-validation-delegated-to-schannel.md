@@ -89,4 +89,7 @@ case above would then connect.
   certificate, keyed to that exact certificate — never replace Schannel's check.
 - `SEC_E_ILLEGAL_MESSAGE` is ambiguous between a corrupted record and a server
   refusing the handshake outright, and is classified for the former. The sync
-  engine's backoff bounds the cost when it is the latter.
+  engine's backoff bounds the cost when it is the latter. The latter is not
+  rare: besides the IP-address case above, it is how a TLS 1.0-only server's
+  refusal arrives on a machine whose cipher list it cannot use, as on GitHub's
+  Windows Server 2025 runners.
