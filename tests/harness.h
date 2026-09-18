@@ -47,6 +47,23 @@ private:
     std::string message_;
 };
 
+// Thrown by a test that cannot run in the current environment. Reported as
+// skipped, never as passed: a test that did not run has proved nothing.
+class SkipTest : public std::exception {
+public:
+    explicit SkipTest(std::string reason) : reason_(std::move(reason)) {}
+
+    [[nodiscard]] const char* what() const noexcept override { return reason_.c_str(); }
+
+private:
+    std::string reason_;
+};
+
+// False when CRIMSON_SKIP_NETWORK_TESTS is set. Tests that need the public
+// internet — the TLS handshakes against real servers — check this, so the rest
+// of the suite still runs offline or in a sandbox without network access.
+[[nodiscard]] bool network_tests_enabled();
+
 using TestFunction = void (*)();
 
 struct TestCase {
@@ -147,6 +164,14 @@ void check_not_equal(std::string_view file, int line, std::string_view expressio
     } registrar_##suite_name##_##test_name{};                                      \
     }                                                                              \
     static void crimson_test_##suite_name##_##test_name()
+
+// First line of any test that talks to the public internet.
+#define CRIMSON_REQUIRE_NETWORK()                                               \
+    do {                                                                        \
+        if (!::crimson::test::network_tests_enabled()) {                        \
+            throw ::crimson::test::SkipTest{"CRIMSON_SKIP_NETWORK_TESTS is set"}; \
+        }                                                                       \
+    } while (false)
 
 #define CHECK(expression)                                                       \
     do {                                                                        \

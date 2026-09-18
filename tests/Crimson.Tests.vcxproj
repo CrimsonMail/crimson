@@ -45,6 +45,7 @@
   <ItemGroup>
     <ClInclude Include="harness.h" />
     <ClInclude Include="net\echo_server.h" />
+    <ClInclude Include="net\fragmenting_stream.h" />
     <ClInclude Include="net\scripted_stream.h" />
   </ItemGroup>
 
@@ -54,8 +55,10 @@
     <ClCompile Include="net\echo_server.cpp" />
     <ClCompile Include="net\test_net_error.cpp" />
     <ClCompile Include="net\test_socket_handle.cpp" />
+    <ClCompile Include="net\test_sspi_error.cpp" />
     <ClCompile Include="net\test_stream_helpers.cpp" />
     <ClCompile Include="net\test_tcp_stream.cpp" />
+    <ClCompile Include="net\test_tls_stream.cpp" />
   </ItemGroup>
 
   <ItemGroup>

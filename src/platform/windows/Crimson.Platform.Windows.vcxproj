@@ -36,7 +36,11 @@
     <ClInclude Include="net\net_log.h" />
     <ClInclude Include="net\resolver.h" />
     <ClInclude Include="net\socket_handle.h" />
+    <ClInclude Include="net\sspi_error.h" />
     <ClInclude Include="net\tcp_stream.h" />
+    <ClInclude Include="net\tls_credentials.h" />
+    <ClInclude Include="net\tls_stream.h" />
+    <ClInclude Include="net\win_security.h" />
     <ClInclude Include="net\win_sockets.h" />
     <ClInclude Include="net\winsock_runtime.h" />
     <ClInclude Include="net\wsa_error.h" />
@@ -46,7 +50,10 @@
     <ClCompile Include="net\cancel.cpp" />
     <ClCompile Include="net\net_log.cpp" />
     <ClCompile Include="net\resolver.cpp" />
+    <ClCompile Include="net\sspi_error.cpp" />
     <ClCompile Include="net\tcp_stream.cpp" />
+    <ClCompile Include="net\tls_credentials.cpp" />
+    <ClCompile Include="net\tls_stream.cpp" />
     <ClCompile Include="net\winsock_runtime.cpp" />
     <ClCompile Include="net\wsa_error.cpp" />
   </ItemGroup>

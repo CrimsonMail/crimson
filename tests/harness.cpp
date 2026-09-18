@@ -4,6 +4,7 @@
 
 #include "harness.h"
 
+#include "platform/windows/net/sspi_error.h"
 #include "platform/windows/net/wsa_error.h"
 
 #include <atomic>
@@ -70,13 +71,24 @@ void fail(std::string_view file, int line, std::string_view expression,
 
 void register_test(const TestCase& test_case) { registry().push_back(test_case); }
 
+bool network_tests_enabled() {
+    static const bool enabled = [] {
+        std::size_t length = 0;
+        char value[8] = {};
+        const bool set = ::getenv_s(&length, value, sizeof(value), "CRIMSON_SKIP_NETWORK_TESTS") == 0 &&
+                         length > 1;
+        return !set;
+    }();
+    return enabled;
+}
+
 std::string describe_error(const crimson::net::NetError& error) {
     std::string text;
     text.append(std::string{crimson::net::to_string(error.op)});
     text.append("/");
     text.append(std::string{crimson::net::to_string(error.cat)});
     text.append(" ");
-    text.append(crimson::net::win::symbolic_name(error.native));
+    text.append(crimson::net::win::error_name(error));
     text.append(" (");
     text.append(crimson::net::win::describe(error));
     text.append(")");
@@ -144,6 +156,7 @@ int run_all(int argc, char** argv) {
     std::size_t passed = 0;
     std::size_t failed = 0;
     std::size_t skipped = 0;
+    std::size_t filtered = 0;
     const auto started = std::chrono::steady_clock::now();
 
     for (const TestCase& test_case : tests) {
@@ -152,7 +165,7 @@ int run_all(int argc, char** argv) {
         full_name.append(test_case.name);
 
         if (!filter.empty() && full_name.find(filter) == std::string::npos) {
-            ++skipped;
+            ++filtered;
             continue;
         }
 
@@ -172,6 +185,9 @@ int run_all(int argc, char** argv) {
         } catch (const AssertionFailure& failure) {
             std::printf("FAILED\n      %s\n", failure.what());
             ++failed;
+        } catch (const SkipTest& skip) {
+            std::printf("skipped (%s)\n", skip.what());
+            ++skipped;
         } catch (const std::exception& error) {
             std::printf("FAILED\n      unexpected exception: %s\n", error.what());
             ++failed;
@@ -196,7 +212,10 @@ int run_all(int argc, char** argv) {
 
     std::printf("\n  %zu passed, %zu failed", passed, failed);
     if (skipped > 0) {
-        std::printf(", %zu filtered out", skipped);
+        std::printf(", %zu skipped", skipped);
+    }
+    if (filtered > 0) {
+        std::printf(", %zu filtered out", filtered);
     }
     std::printf("  (%lld ms)\n", static_cast<long long>(elapsed.count()));
 

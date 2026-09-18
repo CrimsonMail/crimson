@@ -161,6 +161,7 @@ std::string describe(const NetError& error) {
             return "internal contract violation";
         case NetCat::wsa:
         case NetCat::gai:
+        case NetCat::sspi:  // SEC_E_* codes are in the same system message table
             break;
     }
 
