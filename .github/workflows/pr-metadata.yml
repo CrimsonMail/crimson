@@ -13,8 +13,14 @@ name: PR metadata
 #   A title that works as a changelog entry. "Fix IMAP literal parsing across
 #   fragmented reads" is permanent history; "fix" or "update parser" is not.
 #
-# Runs on plain pull_request with a read-only token and makes no API calls: the
-# labels and title are already in the event payload.
+# Runs on plain pull_request with a read-only token.
+#
+# The labels and title are read from the API, not from the event payload. A
+# payload is a snapshot of the moment the event fired, and `gh pr create
+# --label` opens the pull request first and labels it a moment later — so the
+# `opened` payload has no labels, and a check trusting it fails a pull request
+# that was labelled correctly. Re-running that run would not help either:
+# re-runs replay the same payload. Reading the current state avoids both.
 
 on:
   pull_request:
@@ -27,6 +33,8 @@ jobs:
   changelog:
     name: Changelog metadata
     runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
     steps:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
@@ -44,7 +52,11 @@ jobs:
             ];
             const SKIP = 'skip-changelog';
 
-            const pr = context.payload.pull_request;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
             const labels = pr.labels.map((label) => label.name);
             const categories = labels.filter((name) => CATEGORIES.includes(name));
             const skipped = labels.includes(SKIP);
