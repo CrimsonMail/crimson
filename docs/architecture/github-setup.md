@@ -377,8 +377,9 @@ built-in workflows do for free.
 **Fields**, before the views, since several views group by them. Create them
 under Organization settings → Planning → issue fields if the organization has
 that page — they then live on the issue itself and appear in every project —
-otherwise in the project, from the **+** at the right end of the table header.
-Either kind can be grouped by.
+otherwise in the project, under **View → Fields → + Add field**. Either kind
+can be grouped by once it exists; until then Group by offers only the built-in
+fields.
 
 ```text
 Priority        single select   P0 Critical (Red), P1 High (Orange), P2 Normal (Blue), P3 Low (Gray)
@@ -391,24 +392,25 @@ Target release  single select   one option per planned release, e.g. 0.1.0
 Triage sets Priority; reporters are deliberately never asked for it.
 
 **Views.** Rename the existing tab to Triage, and add the rest with **+ New
-view**. Filter in the bar above the table; group, sort and choose columns from
-the ▾ on the view's tab. **Click Save** after changing a view: unsaved changes
-are yours alone and vanish on reload.
+view**. Type the filter in the bar above the view — it autocompletes field
+names — and set everything else in the **View** menu at its right. **Click
+Save view** after changing a view: unsaved changes are yours alone and vanish
+on reload.
 
-| View | Layout | Filter | Group by |
+| View | Layout | Filter | View menu |
 |---|---|---|---|
-| Triage | Table | `status:Triage` | Repository |
-| Backlog | Table | `status:Backlog` | Priority |
-| Ready | Table | `status:Ready` | Effort |
-| Current | Board | `status:"In Progress","In Review"` | columns by Status |
-| Blocked | Table | `status:Blocked` | — (show the Labels column) |
-| Bugs | Table | `type:Bug is:open` | Priority |
-| Release | Table | `target-release:0.1.0` | Status |
-| Roadmap | Roadmap | `-status:Done` | dates from Start date and Target date |
-| Recently Done | Table | `status:Done` | — |
+| Triage | Table | `status:Triage` | Group by Repository; sort by Created, oldest first, so nothing waits forever |
+| Backlog | Table | `status:Backlog` | Group by Priority |
+| Ready | Table | `status:Ready` | Group by Effort; sort by Priority |
+| Current | Board | `status:"In Progress","In Review"` | Column by Status |
+| Blocked | Table | `status:Blocked` | Slice by Labels |
+| Bugs | Table | `type:Bug is:open` | Group by Priority |
+| Release | Table | `target-release:0.1.0` | Group by Status; Show hierarchy on, so checklist sub-issues nest under their release |
+| Roadmap | Roadmap | `-status:Done` | Dates: Start date and Target date; zoom Quarter; markers Milestone |
+| Recently Done | Table | `status:Done` | Sort by Closed, newest first |
 
-Projects cannot group by labels, which is why Blocked shows its `area:` labels
-as a column instead. The Release view's filter changes each release.
+Group by cannot use labels, but Slice by can, which is how Blocked shows which
+areas are stuck. The Release view's filter changes each release.
 
 ### 2. Discussions categories
 
