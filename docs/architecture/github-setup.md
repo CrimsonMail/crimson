@@ -480,6 +480,11 @@ Extensions      reserved for later
 The issue forms already link to Q&A, Ideas and Development, so those three
 should exist before the first external issue is filed.
 
+GitHub starts with Announcements, General, Ideas, Polls, Q&A and Show and tell.
+Keep the first four with their slugs untouched, delete Polls and Show and tell,
+and create the other three — the category editor is the pencil beside
+Categories on the organization's Discussions page.
+
 ### 3. Contact address
 
 `CODE_OF_CONDUCT.md` points enforcement reports at the address on the
