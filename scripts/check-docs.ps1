@@ -5,8 +5,8 @@
 .DESCRIPTION
     Crimson is Windows-first and its documentation gives PowerShell commands,
     many of them copied straight into a terminal. A command that is really bash
-    — a `<<'EOF'` heredoc, a trailing `\` line continuation, a `for ...; do`
-    loop — fails at PowerShell's parser before anything runs, which is exactly
+    - a `<<'EOF'` heredoc, a trailing `\` line continuation, a `for ...; do`
+    loop - fails at PowerShell's parser before anything runs, which is exactly
     what happened to an early version of docs/architecture/github-setup.md.
 
     So every ```powershell block in every Markdown file is handed to
@@ -20,10 +20,17 @@
 #>
 [CmdletBinding()]
 param(
-    [string[]]$Path = @((Join-Path $PSScriptRoot '..'))
+    [string[]]$Path
 )
 
 $ErrorActionPreference = 'Stop'
+
+# The default is set here rather than in param(): Windows PowerShell 5.1, the
+# version every Windows machine ships with, leaves $PSScriptRoot empty in the
+# parameter defaults of a [CmdletBinding()] script.
+if (-not $Path) {
+    $Path = @(Join-Path $PSScriptRoot '..')
+}
 
 $files = foreach ($item in $Path) {
     if (Test-Path -LiteralPath $item -PathType Container) {
