@@ -327,37 +327,46 @@ Not laziness — these have no usable API.
 Projects v2 is GraphQL-only, and the API **cannot create or edit a project's
 Status field**. The columns below have to be created by hand.
 
-Create an organization project named **Crimson Development**, then set the
-Status field options, in this order:
+Create an organization project named **Crimson Development**, importing open
+issues from `crimson`. Check the name took — it can come out as "untitled
+project" — and under **⋯ → Settings → Danger zone** make it **Public**: the
+README sends visitors there, and a private project shows them nothing.
+
+**Status.** Rename the default `Todo` to `Triage` rather than adding a new
+option, so the built-in workflows that pointed at `Todo` follow it. Keep `In
+Progress` and `Done` exactly as they are. Add the rest, in this order:
 
 ```text
-Triage        new, not yet assessed
-Backlog       accepted, not scheduled
-Ready         scoped, ready to be picked up
-In Progress   being worked on
-In Review     has an open pull request
-Blocked       waiting on something external
-Done          finished
+Triage        Gray     new, not yet assessed
+Backlog       Purple   accepted, not scheduled
+Ready         Pink     scoped, ready to be picked up
+In Progress   Red      being worked on
+In Review     Orange   has an open pull request
+Blocked       Yellow   waiting on something external
+Done          Green    finished
 ```
 
-Then create these views:
+The colours are a heat ramp: work warms towards crimson while it is active and
+cools as it finishes. Red is kept for the work itself, so Blocked is the one
+yellow on the board — a blocked red item would look like any other active one.
 
-| View | Filter | Group by |
-|---|---|---|
-| Triage | `status:Triage` | Repository |
-| Backlog | `status:Backlog` | Priority |
-| Ready | `status:Ready` | Effort |
-| Current | `status:"In Progress","In Review"` | Status |
-| Blocked | `status:Blocked` | Area |
-| Bugs | `type:Bug is:open` | Priority |
-| Release | `target-release:<current>` | Status |
-| Roadmap | — | Roadmap layout, by target date |
-| Recently Done | `status:Done` | — |
+**Workflows** (⋯ → Workflows):
 
-Finally, under the project's workflows, enable:
+| Workflow | Setting |
+|---|---|
+| Auto-add to project | On, `crimson`, filter `is:issue` — pull requests stay out, since each one is already linked from its issue |
+| Auto-add sub-issues to project | On |
+| Item added to project | On, Status → `Triage` |
+| Pull request linked to issue | On, Status → **`In Review`** (the default is In Progress) |
+| Item closed, Pull request merged | On, Status → `Done` |
+| Auto-close issue | On — moving an item to Done closes it |
+| Item reopened | On, Status → `Triage` |
+| Auto-archive items | On, filter `is:issue is:closed updated:<@today-30d` |
+| Code changes requested, Code review approved | Off — they act on pull request items, and this project holds issues |
 
-- **Auto-add** items from `CrimsonMail/crimson`, setting Status to `Triage`
-- **Auto-archive** items in `Done` after 30 days, so the project stays fast
+An issue then moves itself: opened → Triage, a `Fixes #N` pull request → In
+Review, merged → Done, archived a month later. The only manual moves are the
+ones that need a decision.
 
 There is deliberately no `project-sync.yml` workflow doing this instead. A
 workflow's `GITHUB_TOKEN` cannot write to organization Projects, so it would
@@ -365,20 +374,43 @@ need a long-lived personal access token stored as a secret — which the
 advanced infrastructure strategy says to avoid — to reproduce what these
 built-in workflows do for free.
 
-### 2. Organization issue fields
-
-Organization settings → Planning:
+**Fields**, before the views, since several views group by them. Create them
+under Organization settings → Planning → issue fields if the organization has
+that page — they then live on the issue itself and appear in every project —
+otherwise in the project, from the **+** at the right end of the table header.
+Either kind can be grouped by.
 
 ```text
-Priority     P0 Critical, P1 High, P2 Normal, P3 Low
-Effort       XS, S, M, L, XL
-Start date   date
-Target date  date
+Priority        single select   P0 Critical (Red), P1 High (Orange), P2 Normal (Blue), P3 Low (Gray)
+Effort          single select   XS, S, M, L, XL
+Start date      date
+Target date     date
+Target release  single select   one option per planned release, e.g. 0.1.0
 ```
 
 Triage sets Priority; reporters are deliberately never asked for it.
 
-### 3. Discussions categories
+**Views.** Rename the existing tab to Triage, and add the rest with **+ New
+view**. Filter in the bar above the table; group, sort and choose columns from
+the ▾ on the view's tab. **Click Save** after changing a view: unsaved changes
+are yours alone and vanish on reload.
+
+| View | Layout | Filter | Group by |
+|---|---|---|---|
+| Triage | Table | `status:Triage` | Repository |
+| Backlog | Table | `status:Backlog` | Priority |
+| Ready | Table | `status:Ready` | Effort |
+| Current | Board | `status:"In Progress","In Review"` | columns by Status |
+| Blocked | Table | `status:Blocked` | — (show the Labels column) |
+| Bugs | Table | `type:Bug is:open` | Priority |
+| Release | Table | `target-release:0.1.0` | Status |
+| Roadmap | Roadmap | `-status:Done` | dates from Start date and Target date |
+| Recently Done | Table | `status:Done` | — |
+
+Projects cannot group by labels, which is why Blocked shows its `area:` labels
+as a column instead. The Release view's filter changes each release.
+
+### 2. Discussions categories
 
 Enable Discussions on the organization and choose **`CrimsonMail/crimson` as
 the source repository** — organization discussions are stored in a repository,
@@ -403,7 +435,7 @@ Extensions      reserved for later
 The issue forms already link to Q&A, Ideas and Development, so those three
 should exist before the first external issue is filed.
 
-### 4. Contact address
+### 3. Contact address
 
 `CODE_OF_CONDUCT.md` points enforcement reports at the address on the
 organization profile, falling back to the repository's Security tab. Add a
