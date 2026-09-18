@@ -405,12 +405,20 @@ on reload.
 | Current | Board | `status:"In Progress","In Review"` | Column by Status |
 | Blocked | Table | `status:Blocked` | Slice by Labels |
 | Bugs | Table | `type:Bug is:open` | Group by Priority |
-| Release | Table | `target-release:0.1.0` | Group by Status; Show hierarchy on, so checklist sub-issues nest under their release |
+| Release | Table | `target-release:0.1.0` | Group by Status |
 | Roadmap | Roadmap | `-status:Done` | Dates: Start date and Target date; zoom Quarter; markers Milestone |
 | Recently Done | Table | `status:Done` | Sort by Closed, newest first |
 
 Group by cannot use labels, but Slice by can, which is how Blocked shows which
 areas are stuck. The Release view's filter changes each release.
+
+Table views have two more switches. **Show hierarchy**, which nests sub-issues
+under their parent, is on for Backlog, Ready and Release, where a parent and its
+children are one piece of work — in Release, the checklist's sub-issues under
+their release. It is off for Triage, Blocked, Bugs and Recently Done, where each
+issue is judged on its own, and where nesting would also break a date sort.
+**Show agent sessions** is off everywhere: it shows Copilot coding-agent
+sessions, and Crimson is not worked on that way.
 
 ### 2. Discussions categories
 
