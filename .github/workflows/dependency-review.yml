@@ -1,0 +1,28 @@
+name: Dependency review
+
+# Crimson takes no third-party libraries (ADR 0004), so today the only
+# dependencies this sees are GitHub Actions versions. That is still worth
+# gating: an Action is code that runs with a token, and a change to one is a
+# change to the supply chain. If a real dependency is ever added, it arrives as
+# an architectural decision through an RFC — and this check is what makes sure
+# it cannot also arrive quietly inside an unrelated pull request.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Dependency review
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # The supply-chain model: fail on a known high or critical
+          # vulnerability.
+          fail-on-severity: high

@@ -1,0 +1,79 @@
+# Path-to-area mapping for pull requests, applied by .github/workflows/labeler.yml.
+#
+# Deterministic by design: a label is added only when a pull request touches a
+# path that unambiguously belongs to that area. Labels are only ever added,
+# never removed, so a maintainer's manual labelling always wins.
+#
+# A pull request can match several areas. That is correct — a TLS change
+# touches networking too — and it is what makes "bugs by area" and similar
+# Project views accurate without anyone remembering to label by hand.
+
+"area: networking":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/core/net/**"
+          - "src/platform/windows/net/**"
+          - "tests/net/**"
+          - "tools/net-smoke/**"
+
+"area: tls":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/platform/windows/net/tls_*"
+          - "src/platform/windows/net/sspi_*"
+          - "src/platform/windows/net/win_security.h"
+          - "tests/net/test_tls_*"
+          - "tests/net/test_sspi_*"
+
+"area: imap":
+  - changed-files:
+      - any-glob-to-any-file: "src/protocols/imap/**"
+
+"area: smtp":
+  - changed-files:
+      - any-glob-to-any-file: "src/protocols/smtp/**"
+
+"area: oauth":
+  - changed-files:
+      - any-glob-to-any-file: "src/protocols/oauth/**"
+
+"area: mime":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/formats/mime/**"
+          - "src/formats/rfc5322/**"
+
+"area: storage":
+  - changed-files:
+      - any-glob-to-any-file: "src/storage/**"
+
+"area: sync":
+  - changed-files:
+      - any-glob-to-any-file: "src/sync/**"
+
+"area: search":
+  - changed-files:
+      - any-glob-to-any-file: "src/search/**"
+
+"area: ui":
+  - changed-files:
+      - any-glob-to-any-file: "src/ui/**"
+
+"area: build":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "build/**"
+          - "scripts/**"
+          - "*.sln"
+          - "**/*.vcxproj"
+
+"area: documentation":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "*.md"
+
+"platform: windows":
+  - changed-files:
+      - any-glob-to-any-file: "src/platform/windows/**"

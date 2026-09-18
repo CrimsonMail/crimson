@@ -1,0 +1,114 @@
+name: Compatibility problem
+description: Crimson misbehaves with a particular mail server or provider
+type: Bug
+labels: ["needs: reproduction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For problems that happen with one server or provider and not others.
+
+        Mail servers differ in which extensions they support and in how
+        strictly they follow the standards, so the details below are usually
+        what makes these reproducible.
+
+        **This form is public.** Please do not paste passwords, OAuth tokens,
+        message contents or other people's addresses. If the problem could
+        expose any of those, report it privately through the
+        [Security tab](https://github.com/CrimsonMail/crimson/security/advisories/new)
+        instead.
+  - type: input
+    id: version
+    attributes:
+      label: Crimson version
+      placeholder: 0.1.0, or commit a1b2c3d
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Gmail
+        - Outlook / Microsoft 365
+        - iCloud
+        - Fastmail
+        - Self-hosted server
+        - Other hosted provider
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server software, if known
+      description: For self-hosted servers. Leave blank for the large providers.
+      placeholder: Dovecot 2.3.21, Postfix 3.8, Exchange 2019 CU14
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: What were you doing?
+      options:
+        - Receiving or syncing mail (IMAP)
+        - Sending mail (SMTP)
+        - Signing in (OAuth)
+        - Adding an account (discovery)
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: The error message Crimson showed, if any, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Server capabilities
+      description: |
+        If you have it, the server's capability list — for IMAP, the reply to
+        CAPABILITY; for SMTP, the reply to EHLO. It tells us which extensions
+        the server supports, and it contains nothing private.
+      render: text
+  - type: textarea
+    id: trace
+    attributes:
+      label: Protocol trace
+      description: |
+        Optional. Before pasting, **delete every LOGIN, AUTHENTICATE and AUTH
+        line** and anything after them that looks like a token, plus any
+        message contents or addresses. A trace with credentials in it cannot be
+        un-published.
+      render: text
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Crimson is involved, if you know. "Not sure" is a perfectly good answer.
+      options:
+        - Not sure
+        - Networking
+        - TLS and certificates
+        - IMAP
+        - SMTP and sending
+        - Sign-in and OAuth
+        - Message display and MIME
+        - Local storage
+        - Synchronization
+        - Search
+        - Interface
+        - Accessibility
+        - Build and tooling
+        - Documentation
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this server or provider
+          required: true
+        - label: I removed passwords, tokens and message contents from anything pasted above
+          required: true

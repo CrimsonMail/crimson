@@ -1,0 +1,82 @@
+name: PR metadata
+
+# Pull requests are squash-merged, so each one becomes a single commit on main
+# and a single line in the release notes. This check makes sure it will be a
+# useful line, before merge rather than at release time when nobody remembers
+# what the change was.
+#
+# It requires two things:
+#
+#   A release-note category: exactly one `changelog:` label (or `performance`),
+#   or `skip-changelog` for changes users should never read about.
+#
+#   A title that works as a changelog entry. "Fix IMAP literal parsing across
+#   fragmented reads" is permanent history; "fix" or "update parser" is not.
+#
+# Runs on plain pull_request with a read-only token and makes no API calls: the
+# labels and title are already in the event payload.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    name: Changelog metadata
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            // Must stay in step with .github/release.yml and .github/labels.yml.
+            const CATEGORIES = [
+              'changelog: added',
+              'changelog: changed',
+              'changelog: fixed',
+              'changelog: security',
+              'changelog: deprecated',
+              'changelog: removed',
+              'changelog: developer',
+              'performance',
+            ];
+            const SKIP = 'skip-changelog';
+
+            const pr = context.payload.pull_request;
+            const labels = pr.labels.map((label) => label.name);
+            const categories = labels.filter((name) => CATEGORIES.includes(name));
+            const skipped = labels.includes(SKIP);
+            const problems = [];
+
+            if (skipped && categories.length > 0) {
+              problems.push(`It has both \`${SKIP}\` and ${categories.map((c) => `\`${c}\``).join(', ')}. Pick one.`);
+            } else if (!skipped && categories.length === 0) {
+              problems.push(`It has no release-note category. Add one of ${CATEGORIES.map((c) => `\`${c}\``).join(', ')}, or \`${SKIP}\`.`);
+            } else if (categories.length > 1) {
+              problems.push(`It has ${categories.length} categories (${categories.map((c) => `\`${c}\``).join(', ')}). A change appears in exactly one section of the release notes.`);
+            }
+
+            const title = pr.title.trim();
+            const words = title.split(/\s+/).filter(Boolean);
+            if (/^(wip|draft|do not merge)\b/i.test(title)) {
+              problems.push('The title marks it as work in progress. Use a draft pull request instead.');
+            } else if (words.length < 3 || title.length < 15) {
+              problems.push(`The title "${title}" is too short to stand as a changelog entry. Describe the change, e.g. "Fix IMAP literal parsing across fragmented reads".`);
+            }
+
+            if (problems.length > 0) {
+              await core.summary
+                .addHeading('Pull request metadata needs attention', 3)
+                .addList(problems)
+                .write();
+              core.setFailed(problems.join('\n'));
+              return;
+            }
+
+            const category = skipped ? SKIP : categories[0];
+            await core.summary
+              .addHeading('Pull request metadata OK', 3)
+              .addRaw(`Release-note category: \`${category}\``)
+              .write();

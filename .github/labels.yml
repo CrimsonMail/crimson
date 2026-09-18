@@ -100,3 +100,44 @@
 - name: "help wanted"
   color: "008672"
   description: "Maintainer would welcome help here"
+
+# --- Changelog category (pull requests only) ------------------------------
+# The release notes are generated from merged pull requests, and a pull
+# request has no Issue Type, so the category it lands in has to come from a
+# label. These are the one deliberate exception to "no type-like labels":
+# they apply to pull requests, which is exactly where Issue Types cannot
+# reach. pr-metadata.yml requires exactly one of them (or skip-changelog),
+# and .github/release.yml maps them to release-note sections. Performance
+# reuses the existing `performance` label rather than duplicating it.
+- name: "changelog: added"
+  color: "1F6FEB"
+  description: "Release notes: new capability"
+- name: "changelog: changed"
+  color: "1F6FEB"
+  description: "Release notes: changed behaviour"
+- name: "changelog: fixed"
+  color: "1F6FEB"
+  description: "Release notes: bug fix"
+- name: "changelog: security"
+  color: "9B1B30"
+  description: "Release notes: security fix (only once disclosure is approved)"
+- name: "changelog: deprecated"
+  color: "1F6FEB"
+  description: "Release notes: deprecation"
+- name: "changelog: removed"
+  color: "1F6FEB"
+  description: "Release notes: removal"
+- name: "changelog: developer"
+  color: "1F6FEB"
+  description: "Release notes: build, CI, tooling or internal change"
+- name: "skip-changelog"
+  color: "8B95A5"
+  description: "Deliberately left out of the release notes"
+
+# --- Automation -----------------------------------------------------------
+- name: "ci-health"
+  color: "B60205"
+  description: "A CI workflow on main is failing; opened and closed by workflow-health"
+- name: "release"
+  color: "5319E7"
+  description: "Release preparation, created by release-checklist"

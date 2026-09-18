@@ -1,0 +1,55 @@
+name: Welcome
+
+# Thanks someone when their first pull request is merged.
+#
+# Short and factual on purpose: automated comments should read as automated.
+# Maintainers and collaborators are skipped, as are bots.
+#
+# pull_request_target is required to comment on pull requests from forks, and
+# it runs with a write token — so, as with the labeler, this workflow never
+# checks out code. It uses only the event payload and the search API.
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  thank:
+    name: Thank a first-time contributor
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const author = pr.user;
+
+            if (author.type === 'Bot') return;
+            if (['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pr.author_association)) return;
+
+            const { owner, repo } = context.repo;
+            const result = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} is:pr is:merged author:${author.login}`,
+              per_page: 1,
+            });
+
+            // The search index lags merges by a little. A count of 0 therefore
+            // almost certainly means this pull request has not been indexed
+            // yet, not that it is someone's second contribution — anyone with
+            // earlier merged work would show at least one.
+            if (result.data.total_count > 1) return;
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: pr.number,
+              body: [
+                `Thank you, @${author.login} — this is your first merged contribution to Crimson.`,
+                '',
+                'You will be credited in the release notes for the version that ships it. If you would rather not be named publicly, say so here and it will be respected in every release.',
+              ].join('\n'),
+            });

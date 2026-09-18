@@ -81,6 +81,28 @@ body:
         - Not account-specific
     validations:
       required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Crimson is involved, if you know. "Not sure" is a perfectly good answer.
+      options:
+        - Not sure
+        - Networking
+        - TLS and certificates
+        - IMAP
+        - SMTP and sending
+        - Sign-in and OAuth
+        - Message display and MIME
+        - Local storage
+        - Synchronization
+        - Search
+        - Interface
+        - Accessibility
+        - Build and tooling
+        - Documentation
+    validations:
+      required: false
   - type: textarea
     id: logs
     attributes:

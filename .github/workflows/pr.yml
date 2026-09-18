@@ -28,8 +28,8 @@ jobs:
     steps:
       # Third-party actions are pinned to a full commit SHA, never a tag, since
       # a tag can be moved to point at different code. Dependabot proposes the
-      # bumps. actions/checkout@v7.0.1:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # bumps.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build
         shell: cmd
@@ -56,3 +56,17 @@ jobs:
         continue-on-error: true
         shell: cmd
         run: call "%GITHUB_WORKSPACE%\x64\${{ matrix.configuration }}\crimson-net-smoke.exe" example.com 80
+
+  lint:
+    # Workflows are part of the supply chain, so their hardening rules are
+    # checked by machine on every pull request instead of remembered in review:
+    # SHA pins with same-line version comments, read-only defaults, pinned
+    # runners, no checkout under pull_request_target, and no interpolation of
+    # untrusted event text. See scripts/check-workflows.py for the reasons.
+    name: Lint workflows
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check workflow hardening rules
+        run: python3 scripts/check-workflows.py

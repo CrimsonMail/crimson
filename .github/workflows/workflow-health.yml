@@ -1,0 +1,130 @@
+name: Workflow health
+
+# Tracks broken CI on main as one issue per workflow rather than one per run.
+#
+#   failure  -> open a `ci-health` issue, or comment on the existing one
+#   success  -> if an issue is open, note the recovery and close it
+#
+# A nightly that breaks and stays broken for a week therefore produces a single
+# issue with seven comments, not seven issues. Deduplication uses a hidden
+# marker in the issue body, so renaming the issue does not break it.
+#
+# Two limits worth knowing:
+#
+#   workflow_run only fires for workflows whose definition is on the default
+#   branch, so this cannot be exercised from the pull request that adds it.
+#
+#   Issues created with GITHUB_TOKEN do not trigger other workflows. That is
+#   intended here: these issues should not re-enter issue triage.
+#
+# Priority is left for triage. Automation does not decide how much something
+# matters.
+
+on:
+  workflow_run:
+    workflows: [main, nightly, CodeQL]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  track:
+    name: Track CI health
+    # Cancelled and skipped runs say nothing about health either way.
+    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const { owner, repo } = context.repo;
+            const workflow = run.name;
+            const marker = `<!-- crimson-ci-health:${workflow} -->`;
+
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'ci-health', per_page: 100,
+            });
+            const existing = open.find(
+              (issue) => !issue.pull_request && (issue.body || '').includes(marker),
+            );
+
+            const runLink = `[run #${run.run_number}](${run.html_url})`;
+            const commitUrl = `${context.payload.repository.html_url}/commit/${run.head_sha}`;
+            const commitLink = `[\`${run.head_sha.slice(0, 7)}\`](${commitUrl})`;
+
+            if (run.conclusion === 'success') {
+              if (!existing) {
+                core.info(`${workflow} is healthy and nothing is open.`);
+                return;
+              }
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: existing.number,
+                body: `Recovered: \`${workflow}\` passed in ${runLink} at ${commitLink}. Closing.`,
+              });
+              await github.rest.issues.update({
+                owner, repo, issue_number: existing.number,
+                state: 'closed', state_reason: 'completed',
+              });
+              core.info(`Closed #${existing.number}.`);
+              return;
+            }
+
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner, repo, run_id: run.id, per_page: 100,
+            });
+            const failed = jobs.filter((job) => job.conclusion === 'failure');
+            const detail = failed.length > 0
+              ? failed.map((job) => {
+                  const step = (job.steps || []).find((s) => s.conclusion === 'failure');
+                  const where = step ? ` — failed at *${step.name}*` : '';
+                  return `- **${job.name}**${where} ([log](${job.html_url}))`;
+                }).join('\n')
+              : '- No individual job reported failure; see the run.';
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: existing.number,
+                body: `Still failing in ${runLink} at ${commitLink}:\n\n${detail}`,
+              });
+              core.info(`Commented on #${existing.number}.`);
+              return;
+            }
+
+            const body = [
+              marker,
+              `\`${workflow}\` is failing on \`main\`.`,
+              '',
+              `First failure: ${runLink} at ${commitLink}`,
+              '',
+              '### Failed jobs',
+              '',
+              detail,
+              '',
+              '---',
+              'Maintained by `workflow-health.yml`. Later failures are added here as comments rather than opened as new issues, and this closes itself when the workflow passes again. Priority is set at triage.',
+            ].join('\n');
+
+            const issue = {
+              owner, repo,
+              title: `CI: ${workflow} is failing on main`,
+              body,
+              labels: ['ci-health', 'area: build'],
+            };
+
+            let created;
+            try {
+              created = await github.rest.issues.create({ ...issue, type: 'Bug' });
+            } catch (error) {
+              // Organization issue types may not be configured. The issue
+              // matters more than its type, so fall back rather than lose it.
+              if (error.status !== 422) throw error;
+              core.warning(`Could not set issue type Bug (${error.message}); creating without a type.`);
+              created = await github.rest.issues.create(issue);
+            }
+            core.info(`Opened #${created.data.number}.`);

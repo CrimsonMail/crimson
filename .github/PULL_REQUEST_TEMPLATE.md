@@ -31,6 +31,7 @@ input, malformed encodings.
 - [ ] No credentials, tokens or message contents can reach a log
 - [ ] Documentation and ADRs updated if this changes a design decision
 - [ ] Labelled `breaking-change` if it affects profile format, schema, or any public API
+- [ ] Labelled with exactly one `changelog:` category (or `performance`), or `skip-changelog` — the PR metadata check enforces this
 
 ## Breaking changes
 
