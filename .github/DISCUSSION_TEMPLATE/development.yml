@@ -1,0 +1,29 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Architecture, protocols and implementation — for talking a design
+        through before anyone writes it.
+
+        A proposal that would change something expensive to reverse becomes an
+        [RFC](https://github.com/CrimsonMail/crimson/tree/main/docs/rfcs), and
+        the decision it reaches is recorded as an
+        [ADR](https://github.com/CrimsonMail/crimson/tree/main/docs/decisions).
+        Check the existing ADRs first: several questions are already settled
+        there, including why Crimson takes no third-party libraries.
+  - type: textarea
+    id: topic
+    attributes:
+      label: What do you want to discuss?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and constraints
+      description: What prompted this, and what any answer has to respect.
+  - type: textarea
+    id: references
+    attributes:
+      label: Related ADRs, RFCs, issues or standards
+      description: Optional. For example ADR 0007, RFC 9051 §6.4.4, or #123.

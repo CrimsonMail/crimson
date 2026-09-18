@@ -1,0 +1,32 @@
+name: Docs
+
+# Every PowerShell example in the documentation is parsed by PowerShell's own
+# parser, so a command that is really bash syntax — a heredoc, a backslash line
+# continuation — is caught here instead of in a reader's terminal.
+#
+# Scoped to pull requests that touch Markdown. That makes it unsuitable as a
+# required check (a skipped run never reports, and would block merges), which
+# is fine: it guards documentation, not the build.
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "scripts/check-docs.ps1"
+      - ".github/workflows/docs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  examples:
+    name: PowerShell examples parse
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # pwsh is preinstalled on GitHub's Ubuntu images, and the parser is the
+      # same one Windows PowerShell 7 uses.
+      - name: Check PowerShell examples
+        shell: pwsh
+        run: ./scripts/check-docs.ps1
