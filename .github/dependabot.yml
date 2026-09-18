@@ -16,6 +16,9 @@ updates:
       prefix: "ci"
     labels:
       - "area: build"
+      # Action bumps are not something users read about in release notes, and
+      # without a category pr-metadata.yml would block every Dependabot PR.
+      - "skip-changelog"
     groups:
       github-owned-actions:
         patterns:

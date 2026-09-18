@@ -71,6 +71,26 @@ Bad:   fix parser
 Bad:   updates
 ```
 
+Every pull request also needs **exactly one release-note category label**, so
+the release notes can be generated from merged work rather than reconstructed
+from memory at release time:
+
+| Label | Use for |
+|---|---|
+| `changelog: added` | New capability |
+| `changelog: changed` | Existing behaviour works differently |
+| `changelog: fixed` | Bug fix |
+| `performance` | Faster, or uses less memory or disk |
+| `changelog: security` | Security fix, once disclosure is approved |
+| `changelog: deprecated` | Something slated for removal |
+| `changelog: removed` | Something removed |
+| `changelog: developer` | Build, CI, tooling or internal change worth a line |
+| `skip-changelog` | Nothing a reader of the release notes needs to know |
+
+The **PR metadata** check fails until the category is set and the title reads
+as a changelog entry. Area labels are applied automatically from the paths a
+pull request touches.
+
 Keep pull requests focused. A reviewable PR does one thing.
 
 ## Code style

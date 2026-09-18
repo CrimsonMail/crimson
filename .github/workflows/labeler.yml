@@ -1,0 +1,36 @@
+name: Labeler
+
+# Adds area labels to pull requests from the paths they touch, using the
+# mapping in .github/labeler.yml.
+#
+# Why pull_request_target: labelling a pull request from a fork needs a token
+# that can write to it, and a plain pull_request trigger gives fork PRs a
+# read-only token. pull_request_target runs in the context of the base
+# repository with a write token instead.
+#
+# That is exactly why this workflow must never check out code. Checking out the
+# fork's head here would run an outsider's files with a write token, which is
+# the standard way workflows like this are compromised. The labeler only reads
+# the list of changed paths through the API, and reads its configuration from
+# the base branch, so a pull request cannot change the rules it is judged by.
+# scripts/check-workflows.py enforces the no-checkout rule.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  label:
+    name: Label by path
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          # Add only. A label a maintainer applied by hand is never removed.
+          sync-labels: false

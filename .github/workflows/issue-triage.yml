@@ -1,0 +1,80 @@
+name: Issue triage
+
+# Turns the optional "Area" answer on an issue form into an area label.
+#
+# Deliberately narrow. The bot specification is explicit that automation
+# applies metadata only when the reporter stated it, and never guesses: no
+# priority, no inferred area, no closing. Everything else is a triage decision.
+#
+# The issue body is untrusted text. It is read from context.payload inside the
+# script and never interpolated with ${{ }}, which would splice it into the
+# script source before it runs.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  area:
+    name: Apply area label from form
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            // Keys must match the options of the "Area" dropdown in
+            // .github/ISSUE_TEMPLATE/*.yml exactly.
+            const AREAS = {
+              'Networking': 'area: networking',
+              'TLS and certificates': 'area: tls',
+              'IMAP': 'area: imap',
+              'SMTP and sending': 'area: smtp',
+              'Sign-in and OAuth': 'area: oauth',
+              'Message display and MIME': 'area: mime',
+              'Local storage': 'area: storage',
+              'Synchronization': 'area: sync',
+              'Search': 'area: search',
+              'Interface': 'area: ui',
+              'Accessibility': 'area: accessibility',
+              'Build and tooling': 'area: build',
+              'Documentation': 'area: documentation',
+            };
+
+            const issue = context.payload.issue;
+            const body = issue.body || '';
+
+            // Issue forms render each answer under its field label as a
+            // level-3 heading. Unanswered optional fields read "_No response_".
+            //
+            // (?:\r?\n)+ rather than \r?\n+ : bodies submitted from the web
+            // often use CRLF, and \r?\n+ means "optional CR, then several LFs",
+            // which fails on the CRLF blank line between heading and answer.
+            const match = body.match(/^###[ \t]+Area[ \t]*(?:\r?\n)+[ \t]*([^\r\n]+)/m);
+            if (!match) {
+              core.info('No Area section; not a form issue, or the field was removed.');
+              return;
+            }
+
+            const answer = match[1].trim();
+            const label = AREAS[answer];
+            if (!label) {
+              core.info(`No label for "${answer}" (unanswered, or "Not sure").`);
+              return;
+            }
+
+            if (issue.labels.some((existing) => existing.name === label)) {
+              core.info(`Already labelled ${label}.`);
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: issue.number,
+              labels: [label],
+            });
+            core.info(`Applied ${label}.`);

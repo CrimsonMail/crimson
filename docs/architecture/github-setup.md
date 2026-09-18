@@ -91,8 +91,21 @@ gh api -X PUT repos/CrimsonMail/crimson/private-vulnerability-reporting
 For a longer body, a PowerShell here-string (`@'` … `'@`, with the closing
 delimiter at column zero) is more readable and works the same way.
 
-Dependabot alerts are on by default for public repositories; confirm under
-Settings → Code security.
+Turn on Dependabot alerts, which also turns on the dependency graph. Do not
+assume either is already on because the repository is public: on this
+organization the graph was off, and the `Dependency review` check fails without
+it — "Dependency review is not supported on this repository".
+
+```powershell
+gh api -X PUT repos/CrimsonMail/crimson/vulnerability-alerts
+```
+
+Confirm it took. This prints nothing when alerts are on, and fails with
+`HTTP 404` when they are not:
+
+```powershell
+gh api repos/CrimsonMail/crimson/vulnerability-alerts
+```
 
 ### 6. Actions token default
 
