@@ -103,9 +103,13 @@ build/                    shared MSBuild property sheets
 ## Documentation
 
 - [Networking design](docs/architecture/networking.md)
-- [Architecture decision records](docs/decisions/)
+- [Architecture decision records](docs/decisions/) — decisions already made, and why
+- [Requests for comments](docs/rfcs/) — how to propose a significant change
+- [GitHub setup](docs/architecture/github-setup.md) — how the repository and its automation are configured
 - [Contributing](CONTRIBUTING.md)
+- [Getting help](SUPPORT.md)
 - [Security policy](SECURITY.md)
+- [Contributors](CONTRIBUTORS.md)
 - [Changelog](CHANGELOG.md)
 
 ## Contributing

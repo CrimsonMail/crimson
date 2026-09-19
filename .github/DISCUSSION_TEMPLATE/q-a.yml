@@ -1,0 +1,28 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions about using or building Crimson.
+
+        **Never paste passwords, OAuth tokens or message contents here.** This
+        is public. If your question is about a possible vulnerability, report
+        it privately through the
+        [Security tab](https://github.com/CrimsonMail/crimson/security/advisories/new)
+        instead.
+  - type: input
+    id: version
+    attributes:
+      label: Crimson version or commit
+      description: Optional, but it often changes the answer.
+      placeholder: 0.1.0, or commit a1b2c3d
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Optional. Saves anyone answering from suggesting it again.
