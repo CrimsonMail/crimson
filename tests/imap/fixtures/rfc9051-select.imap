@@ -1,0 +1,7 @@
+* 172 EXISTS
+* OK [UIDVALIDITY 3857529045] UIDs valid
+* OK [UIDNEXT 4392] Predicted next UID
+* FLAGS (\Answered \Flagged \Deleted \Seen \Draft)
+* OK [PERMANENTFLAGS (\Deleted \Seen \*)] Limited
+* LIST () "/" INBOX
+A142 OK [READ-WRITE] SELECT completed

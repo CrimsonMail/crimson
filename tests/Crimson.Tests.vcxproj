@@ -44,6 +44,7 @@
 
   <ItemGroup>
     <ClInclude Include="harness.h" />
+    <ClInclude Include="imap\imap_test_support.h" />
     <ClInclude Include="net\echo_server.h" />
     <ClInclude Include="net\fragmenting_stream.h" />
     <ClInclude Include="net\scripted_stream.h" />
@@ -51,6 +52,9 @@
 
   <ItemGroup>
     <ClCompile Include="harness.cpp" />
+    <ClCompile Include="imap\test_fixtures.cpp" />
+    <ClCompile Include="imap\test_lexer.cpp" />
+    <ClCompile Include="imap\test_response_reader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="net\echo_server.cpp" />
     <ClCompile Include="net\test_net_error.cpp" />
@@ -67,6 +71,9 @@
     </ProjectReference>
     <ProjectReference Include="..\src\platform\windows\Crimson.Platform.Windows.vcxproj">
       <Project>{AE917164-F24D-415B-80F7-3DBB775887B7}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\src\protocols\Crimson.Protocols.vcxproj">
+      <Project>{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}</Project>
     </ProjectReference>
   </ItemGroup>
 

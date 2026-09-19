@@ -49,6 +49,8 @@ Larger proposals that need discussion before a decision belong in
 | [0009](0009-connection-cancellation-model.md) | Cancel blocked I/O with `CancelIoEx` under a mutex | Accepted |
 | [0010](0010-schannel-for-tls.md) | TLS through Schannel, as a `ByteStream` over a `ByteStream` | Accepted |
 | [0011](0011-certificate-validation-delegated-to-schannel.md) | Certificate validation is delegated to Schannel | Accepted |
+| [0012](0012-imap-lexing-is-resumable-and-parser-directed.md) | IMAP lexing is resumable and parser-directed | Accepted |
+| [0013](0013-fuzz-parsers-with-msvc-libfuzzer.md) | Parsers are fuzzed with MSVC's libFuzzer | Accepted |
 
 An ADR is never edited to change its decision. Supersede it with a new record
 and update the status of the old one.

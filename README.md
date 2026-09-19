@@ -12,8 +12,9 @@ implementations rather than a bundled mail library.
 
 Crimson is being built from the bottom up. The networking foundation is in
 place — DNS resolution, TCP connections, a byte-stream abstraction, and TLS 1.2
-and 1.3 through Windows' own Schannel. There is no IMAP, no SMTP, no storage and
-no user interface yet.
+and 1.3 through Windows' own Schannel — and so is a streaming IMAP tokenizer,
+tested against real mail providers and fuzzed nightly. There is no IMAP command
+layer, no SMTP, no storage and no user interface yet.
 
 Follow [Crimson Development](https://github.com/orgs/CrimsonMail/projects) for
 current progress, or read [the architecture docs](docs/architecture/) to see
@@ -87,12 +88,22 @@ badssl.com. To run the suite offline, set `CRIMSON_SKIP_NETWORK_TESTS=1`; those
 tests are then reported as skipped rather than passed. A badssl.com test is also
 skipped, with the reason, when that service is having an outage.
 
+To watch the IMAP tokenizer read a real mail server — greeting, `CAPABILITY`
+and `LOGOUT`, never credentials — and to fuzz it:
+
+```
+x64\Debug\crimson-imap-probe.exe imap.gmail.com
+scripts\fuzz.cmd imap_lexer 600    ten minutes; see ADR 0013
+```
+
 ## Repository layout
 
 ```
 src/core/                 portable domain and application logic
+src/protocols/            IMAP, and later SMTP and OAuth; portable, no Windows headers
 src/platform/windows/     Win32, Winsock, Schannel, ESE, DPAPI
 tests/                    unit, protocol and integration tests
+tests/fuzz/               libFuzzer targets and seed inputs
 tools/                    development and diagnostic utilities
 docs/architecture/        design documentation
 docs/decisions/           architecture decision records
@@ -103,6 +114,7 @@ build/                    shared MSBuild property sheets
 ## Documentation
 
 - [Networking design](docs/architecture/networking.md)
+- [IMAP design](docs/architecture/imap.md) — the tokenizer, and what real servers were measured doing
 - [Architecture decision records](docs/decisions/) — decisions already made, and why
 - [Requests for comments](docs/rfcs/) — how to propose a significant change
 - [GitHub setup](docs/architecture/github-setup.md) — how the repository and its automation are configured

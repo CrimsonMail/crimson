@@ -11,6 +11,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Crimson.Tests", "tests\Crim
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Crimson.Tools.NetSmoke", "tools\net-smoke\Crimson.Tools.NetSmoke.vcxproj", "{687C8042-5BA1-4A89-9396-B30EDB285DF5}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Crimson.Protocols", "src\protocols\Crimson.Protocols.vcxproj", "{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Crimson.Tools.ImapProbe", "tools\imap-probe\Crimson.Tools.ImapProbe.vcxproj", "{416E5096-8DDC-42A7-A947-CD8ABB03E34A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -33,6 +37,14 @@ Global
 		{687C8042-5BA1-4A89-9396-B30EDB285DF5}.Debug|x64.Build.0 = Debug|x64
 		{687C8042-5BA1-4A89-9396-B30EDB285DF5}.Release|x64.ActiveCfg = Release|x64
 		{687C8042-5BA1-4A89-9396-B30EDB285DF5}.Release|x64.Build.0 = Release|x64
+		{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}.Debug|x64.ActiveCfg = Debug|x64
+		{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}.Debug|x64.Build.0 = Debug|x64
+		{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}.Release|x64.ActiveCfg = Release|x64
+		{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}.Release|x64.Build.0 = Release|x64
+		{416E5096-8DDC-42A7-A947-CD8ABB03E34A}.Debug|x64.ActiveCfg = Debug|x64
+		{416E5096-8DDC-42A7-A947-CD8ABB03E34A}.Debug|x64.Build.0 = Debug|x64
+		{416E5096-8DDC-42A7-A947-CD8ABB03E34A}.Release|x64.ActiveCfg = Release|x64
+		{416E5096-8DDC-42A7-A947-CD8ABB03E34A}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
