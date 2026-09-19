@@ -79,9 +79,49 @@ message compromise the client:
 
 ## Release verification
 
-Once Crimson publishes releases, this section will document SHA-256 checksums,
-the SPDX SBOM, artifact attestation verification and the code-signing identity.
-Not applicable yet — there are no release artifacts to verify.
+Every release is built by the `release.yml` workflow from a tagged commit, in
+GitHub's hosted runners, and publishes:
+
+| File | What it is |
+|---|---|
+| `crimson-X.Y.Z-windows-x64.zip` | The program |
+| `crimson-X.Y.Z-windows-x64-symbols.zip` | Debug symbols for the exact same build |
+| `crimson-X.Y.Z.spdx.json` | Software bill of materials (SPDX 2.3) |
+| `SHA256SUMS.txt` | SHA-256 checksums of the files above |
+
+**Check the download was not corrupted or altered in transit.** In PowerShell,
+compare this with the matching line in `SHA256SUMS.txt`:
+
+```powershell
+(Get-FileHash .\crimson-X.Y.Z-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+```
+
+On Linux or macOS, in the download directory: `sha256sum -c SHA256SUMS.txt`.
+
+**Check who built it, from what.** A checksum only proves the file matches the
+list; the list could have been replaced too. Build-provenance attestations
+prove that a file was produced by Crimson's release workflow, in the
+`CrimsonMail/crimson` repository, from a specific commit. With the
+[GitHub CLI](https://cli.github.com):
+
+```powershell
+gh attestation verify .\crimson-X.Y.Z-windows-x64.zip --repo CrimsonMail/crimson
+```
+
+A file that fails this did not come from Crimson's release process, whatever
+its name or checksum says.
+
+**What it depends on.** The SBOM is generated from the shipped binaries rather
+than from a manifest. Crimson takes no third-party libraries, so it lists
+exactly two things beyond Crimson itself: the Microsoft Visual C++
+Redistributable, which the binaries load at run time and which must be
+installed on the machine, and the Windows components they import.
+
+**Not yet signed.** Crimson's binaries do not carry an Authenticode signature,
+because the project has no code-signing certificate yet. Windows SmartScreen
+and Smart App Control may warn about or block them. The attestation above is
+the way to establish that a download is genuine until signing exists; this
+section will then document the signing identity to expect.
 
 ## Security practices
 

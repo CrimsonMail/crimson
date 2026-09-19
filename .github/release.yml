@@ -1,0 +1,42 @@
+# Categories for GitHub's generated release notes.
+#
+# Used by release.yml when it creates the draft release, and by
+# scripts/draft-changelog.ps1 when it drafts the CHANGELOG.md section. Both ask
+# GitHub for the same generated notes, so they always agree.
+#
+# Each pull request lands in the first category whose label it carries.
+# Breaking changes come first on purpose, so a breaking change is called out
+# as one rather than disappearing into "Changed".
+#
+# The labels are the release-note categories pr-metadata.yml requires on every
+# pull request; keep the three files in step.
+
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    # Automation is not a contributor. Its pull requests are also labelled
+    # skip-changelog, but excluding the accounts keeps them out of the
+    # contributors list as well.
+    authors:
+      - dependabot[bot]
+      - github-actions[bot]
+  categories:
+    - title: Breaking changes
+      labels: ["breaking-change"]
+    - title: Added
+      labels: ["changelog: added"]
+    - title: Changed
+      labels: ["changelog: changed"]
+    - title: Fixed
+      labels: ["changelog: fixed"]
+    - title: Performance
+      labels: ["performance"]
+    - title: Security
+      labels: ["changelog: security"]
+    - title: Deprecated
+      labels: ["changelog: deprecated"]
+    - title: Removed
+      labels: ["changelog: removed"]
+    - title: Developer
+      labels: ["changelog: developer"]
