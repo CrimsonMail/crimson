@@ -58,6 +58,12 @@ public:
 
         // Items in one list: search results, flags, addresses. A server that
         // sends more than this is not one Crimson can work with anyway.
+        //
+        // Counted in grammar items only. The pieces a literal arrives in are
+        // never counted, because how many there are is decided by the network
+        // rather than by the server, and a limit that depends on that accepts
+        // a response read whole and refuses the same one read a byte at a
+        // time. The fuzzer found that twice.
         std::size_t max_items = 100'000;
     };
 
@@ -115,6 +121,11 @@ private:
     [[nodiscard]] std::expected<UnknownResponse, ReadError> parse_unknown(std::string name);
 
     [[nodiscard]] ReadError malformed() const;
+
+    // Counts the token just read against max_items, except for literal
+    // content, which the network divides as it pleases. True means the limit
+    // is exceeded.
+    [[nodiscard]] bool over_item_limit(std::size_t& count) const noexcept;
 
     ResponseReader& reader_;
     Limits limits_;

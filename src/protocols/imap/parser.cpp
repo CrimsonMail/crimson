@@ -164,6 +164,13 @@ ReadError Parser::malformed() const {
 
 std::expected<ReadStatus, ReadError> Parser::read(LexMode mode) { return reader_.read(mode, token_); }
 
+bool Parser::over_item_limit(std::size_t& count) const noexcept {
+    if (token_.is(TokenKind::literal_data)) {
+        return false;
+    }
+    return ++count > limits_.max_items;
+}
+
 std::expected<void, ReadError> Parser::expect(TokenKind kind) {
     const auto got = read(LexMode::normal);
     if (!got) {
@@ -726,15 +733,15 @@ std::expected<ResponseCode, ReadError> Parser::parse_response_code(bool& line_en
         return code;
     }
 
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto item = read(LexMode::normal);
         if (!item) {
             return std::unexpected(item.error());
         }
         if (*item == ReadStatus::end) {
+            return std::unexpected(malformed());
+        }
+        if (over_item_limit(count)) {
             return std::unexpected(malformed());
         }
         if (token_.is(TokenKind::rbracket)) {
@@ -940,15 +947,16 @@ std::expected<void, ReadError> Parser::skip_value() {
     // token_ holds the value's first token.
     if (token_.is(TokenKind::lparen)) {
         std::size_t depth = 1;
-        for (std::size_t count = 0; depth > 0; ++count) {
-            if (count > limits_.max_items) {
-                return std::unexpected(malformed());
-            }
+        for (std::size_t count = 0; depth > 0;) {
             const auto got = read(LexMode::normal);
             if (!got) {
                 return std::unexpected(got.error());
             }
             if (*got == ReadStatus::end || token_.is(TokenKind::eol)) {
+                return std::unexpected(malformed());
+            }
+            // A skipped list can hold a literal, and its pieces are not items.
+            if (over_item_limit(count)) {
                 return std::unexpected(malformed());
             }
             if (token_.is(TokenKind::lparen)) {
@@ -1093,15 +1101,15 @@ std::expected<void, ReadError> Parser::parse_body_section(FetchResponse& fetch, 
     BodySection section;
     section.binary = binary;
 
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto got = read(LexMode::normal);
         if (!got) {
             return std::unexpected(got.error());
         }
         if (*got == ReadStatus::end || token_.is(TokenKind::eol)) {
+            return std::unexpected(malformed());
+        }
+        if (over_item_limit(count)) {
             return std::unexpected(malformed());
         }
         if (token_.is(TokenKind::rbracket)) {
@@ -1327,14 +1335,14 @@ std::expected<UnknownResponse, ReadError> Parser::parse_unknown(std::string name
     // that depends on that gives one answer for a whole response and another
     // for the same response read a byte at a time.
     for (std::size_t count = 0;;) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
         const auto got = read(LexMode::normal);
         if (!got) {
             return std::unexpected(got.error());
         }
         if (*got == ReadStatus::end) {
+            return std::unexpected(malformed());
+        }
+        if (over_item_limit(count)) {
             return std::unexpected(malformed());
         }
         if (token_.is(TokenKind::eol)) {
@@ -1347,7 +1355,6 @@ std::expected<UnknownResponse, ReadError> Parser::parse_unknown(std::string name
         if (token_.is(TokenKind::literal_end)) {
             continue;
         }
-        ++count;
         if (!unknown.text.empty()) {
             unknown.text += ' ';
         }

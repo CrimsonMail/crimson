@@ -512,6 +512,17 @@ CRIMSON_TEST(imap_parser, limits_are_counted_in_units_the_network_cannot_change)
     CHECK_MSG(!whole.error, whole.error_text());
     const Parsed trickled = parse_all(input, std::vector<std::size_t>(input.size(), 1), limits);
     CHECK_MSG(trickled.summary() == whole.summary(), "one byte per read: " + trickled.summary());
+
+    // The fuzzer found the same fault a second time, in the loop that skips
+    // an item Crimson does not know: a skipped list can hold a literal too.
+    const std::string nested =
+        "* 2 FETCH (XTHING (a (b {30}\r\n" + std::string(30, 'y') + ")) UID 5)\r\n";
+    const Parsed nested_whole = parse_all(nested, {}, limits);
+    CHECK_MSG(!nested_whole.error, nested_whole.error_text());
+    const Parsed nested_trickled =
+        parse_all(nested, std::vector<std::size_t>(nested.size(), 1), limits);
+    CHECK_MSG(nested_trickled.summary() == nested_whole.summary(),
+              "nested, one byte per read: " + nested_trickled.summary());
 }
 
 CRIMSON_TEST(imap_parser, parsing_does_not_depend_on_how_the_input_is_split) {
