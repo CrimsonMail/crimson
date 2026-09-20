@@ -294,11 +294,15 @@ LexOutcome Lexer::lex_quoted(Token& out) {
             begin(out, TokenKind::quoted);
             out.raw.assign(reinterpret_cast<const char*>(buffer_.data() + pos_), length);
             out.unescaped.reserve(length - 2);
-            for (std::size_t at_raw = 1; at_raw + 1 < length; ++at_raw) {
+            // Skips the opening and closing quotes, and turns each backslash
+            // escape into the character it protects.
+            std::size_t at_raw = 1;
+            while (at_raw + 1 < length) {
                 if (out.raw[at_raw] == '\\') {
-                    ++at_raw;
+                    ++at_raw;  // the escaped character, always " or backslash
                 }
                 out.unescaped.push_back(out.raw[at_raw]);
+                ++at_raw;
             }
             consume(length);
             complete();
@@ -319,8 +323,10 @@ LexOutcome Lexer::lex_quoted(Token& out) {
 }
 
 LexOutcome Lexer::lex_literal_header(Token& out) {
-    // [~] { digits [+] } CRLF — at most a couple of dozen bytes, so it is
-    // simply re-examined from the start whenever more input arrives.
+    // A header is a tilde for a literal8, then a brace, the size in digits, an
+    // optional plus, a closing brace and CRLF. That is a couple of dozen bytes
+    // at most, so it is simply re-examined from the start as input arrives,
+    // rather than carrying resume state like the longer tokens do.
     std::size_t index = pos_;
     const bool binary = at(index) == '~';
     if (binary) {

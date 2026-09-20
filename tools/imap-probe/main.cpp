@@ -293,13 +293,17 @@ bool write_recording(const char* path, const std::vector<std::byte>& received) {
 int main(int argc, char** argv) {
     const char* record_path = nullptr;
     std::vector<std::string> positional;
-    for (int index = 1; index < argc; ++index) {
+    int index = 1;
+    while (index < argc) {
         const std::string_view argument = argv[index];
-        if (argument == "--record" && index + 1 < argc) {
-            record_path = argv[++index];
-        } else if (argument == "--record") {
-            std::printf("--record needs a file name.\n");
-            return 2;
+        ++index;
+        if (argument == "--record") {
+            if (index >= argc) {
+                std::printf("--record needs a file name.\n");
+                return 2;
+            }
+            record_path = argv[index];
+            ++index;
         } else {
             positional.emplace_back(argument);
         }
