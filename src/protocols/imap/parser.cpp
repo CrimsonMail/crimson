@@ -278,13 +278,13 @@ std::expected<Flags, ReadError> Parser::read_flag_list() {
         return std::unexpected(open.error());
     }
     Flags flags;
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto got = read(LexMode::normal);
         if (!got) {
             return std::unexpected(got.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*got == ReadStatus::end) {
             return std::unexpected(malformed());
@@ -555,8 +555,11 @@ std::expected<void, ReadError> Parser::recover_code(ResponseCode& code, bool& li
     if (code.kind != ResponseCodeKind::capability && code.kind != ResponseCodeKind::permanent_flags) {
         code.kind = ResponseCodeKind::other;
     }
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
+    for (std::size_t count = 0;;) {
+        // Literal content reaches even the text modes: once the lexer is
+        // inside a literal, the mode is ignored until the literal ends. So
+        // this loop can meet literal pieces too, and must not count them.
+        if (over_item_limit(count)) {
             return std::unexpected(malformed());
         }
         if (token_.is(TokenKind::rbracket)) {
@@ -658,13 +661,13 @@ std::expected<ResponseCode, ReadError> Parser::parse_response_code(bool& line_en
     if (token_.is_atom("CAPABILITY")) {
         code.kind = ResponseCodeKind::capability;
         Capabilities capabilities;
-        for (std::size_t count = 0;; ++count) {
-            if (count > limits_.max_items) {
-                return std::unexpected(malformed());
-            }
+        for (std::size_t count = 0;;) {
             const auto item = read(LexMode::normal);
             if (!item) {
                 return std::unexpected(item.error());
+            }
+            if (over_item_limit(count)) {
+                return std::unexpected(malformed());
             }
             if (*item == ReadStatus::end) {
                 return std::unexpected(malformed());
@@ -760,13 +763,13 @@ std::expected<ResponseCode, ReadError> Parser::parse_response_code(bool& line_en
 
 std::expected<Capabilities, ReadError> Parser::parse_capabilities() {
     Capabilities capabilities;
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto got = read(LexMode::normal);
         if (!got) {
             return std::unexpected(got.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*got == ReadStatus::end) {
             return std::unexpected(malformed());
@@ -787,13 +790,13 @@ std::expected<MailboxListing, ReadError> Parser::parse_mailbox_listing() {
     if (auto open = expect(TokenKind::lparen); !open) {
         return std::unexpected(open.error());
     }
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto attribute = read(LexMode::normal);
         if (!attribute) {
             return std::unexpected(attribute.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*attribute == ReadStatus::end) {
             return std::unexpected(malformed());
@@ -850,13 +853,13 @@ std::expected<MailboxStatus, ReadError> Parser::parse_mailbox_status() {
     if (auto open = expect(TokenKind::lparen); !open) {
         return std::unexpected(open.error());
     }
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto item = read(LexMode::normal);
         if (!item) {
             return std::unexpected(item.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*item == ReadStatus::end) {
             return std::unexpected(malformed());
@@ -900,13 +903,13 @@ std::expected<MailboxStatus, ReadError> Parser::parse_mailbox_status() {
 
 std::expected<SearchResults, ReadError> Parser::parse_search_results() {
     SearchResults results;
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto item = read(LexMode::normal);
         if (!item) {
             return std::unexpected(item.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*item == ReadStatus::end) {
             return std::unexpected(malformed());
@@ -1007,13 +1010,13 @@ std::expected<std::vector<Address>, ReadError> Parser::parse_address_list() {
         return std::unexpected(malformed());
     }
 
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto item = read(LexMode::normal);
         if (!item) {
             return std::unexpected(item.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*item == ReadStatus::end) {
             return std::unexpected(malformed());
@@ -1211,13 +1214,13 @@ std::expected<FetchResponse, ReadError> Parser::parse_fetch(std::uint32_t sequen
         return std::unexpected(open.error());
     }
 
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    for (std::size_t count = 0;;) {
         const auto item = read(LexMode::normal);
         if (!item) {
             return std::unexpected(item.error());
+        }
+        if (over_item_limit(count)) {
+            return std::unexpected(malformed());
         }
         if (*item == ReadStatus::end) {
             return std::unexpected(malformed());

@@ -523,6 +523,16 @@ CRIMSON_TEST(imap_parser, limits_are_counted_in_units_the_network_cannot_change)
         parse_all(nested, std::vector<std::size_t>(nested.size(), 1), limits);
     CHECK_MSG(nested_trickled.summary() == nested_whole.summary(),
               "nested, one byte per read: " + nested_trickled.summary());
+
+    // And a third time, in a response code. Literal content reaches even the
+    // text modes: once the lexer is inside a literal, the mode is ignored
+    // until it ends, so no loop anywhere can assume it will not see one.
+    const std::string in_code = "* OK [CAPABILITY {20}\r\n" + std::string(20, 'z') + " IDLE] ready\r\n";
+    const Parsed code_whole = parse_all(in_code, {}, limits);
+    const Parsed code_trickled =
+        parse_all(in_code, std::vector<std::size_t>(in_code.size(), 1), limits);
+    CHECK_MSG(code_trickled.summary() == code_whole.summary(),
+              "in a code, one byte per read: " + code_trickled.summary());
 }
 
 CRIMSON_TEST(imap_parser, parsing_does_not_depend_on_how_the_input_is_split) {
