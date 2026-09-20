@@ -961,10 +961,9 @@ std::expected<void, ReadError> Parser::skip_value() {
     }
 
     if (token_.is(TokenKind::literal_begin)) {
-        for (std::size_t count = 0;; ++count) {
-            if (count > limits_.max_items) {
-                return std::unexpected(malformed());
-            }
+        // No item counting here: how many pieces a literal arrives in is the
+        // network's business, and its size is already bounded by the lexer.
+        for (;;) {
             const auto got = read(LexMode::normal);
             if (!got) {
                 return std::unexpected(got.error());
@@ -1165,10 +1164,9 @@ std::expected<void, ReadError> Parser::parse_body_section(FetchResponse& fetch, 
         section.content.reserve(static_cast<std::size_t>(section.size));
     }
 
-    for (std::size_t count = 0;; ++count) {
-        if (count > limits_.max_items) {
-            return std::unexpected(malformed());
-        }
+    // No item counting while a literal is arriving: the number of pieces is
+    // the network's business, and the size is bounded by the lexer.
+    for (;;) {
         const auto piece = read(LexMode::normal);
         if (!piece) {
             return std::unexpected(piece.error());
@@ -1323,7 +1321,12 @@ std::expected<UnknownResponse, ReadError> Parser::parse_unknown(std::string name
     // response may still contain a literal, and a literal's content has to be
     // consumed as content — otherwise its bytes would be read as the next
     // response and every response after it would be wrong.
-    for (std::size_t count = 0;; ++count) {
+    //
+    // Literal pieces are not counted against the item limit. How many pieces
+    // a literal arrives in depends on how the network divided it, and a limit
+    // that depends on that gives one answer for a whole response and another
+    // for the same response read a byte at a time.
+    for (std::size_t count = 0;;) {
         if (count > limits_.max_items) {
             return std::unexpected(malformed());
         }
@@ -1344,6 +1347,7 @@ std::expected<UnknownResponse, ReadError> Parser::parse_unknown(std::string name
         if (token_.is(TokenKind::literal_end)) {
             continue;
         }
+        ++count;
         if (!unknown.text.empty()) {
             unknown.text += ' ';
         }

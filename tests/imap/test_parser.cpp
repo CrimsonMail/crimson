@@ -499,6 +499,21 @@ CRIMSON_TEST(imap_parser, the_end_of_the_connection_is_reported_not_invented) {
     CHECK_EQ(cut.responses.size(), std::size_t{1});  // what did arrive is kept
 }
 
+CRIMSON_TEST(imap_parser, limits_are_counted_in_units_the_network_cannot_change) {
+    // Found by the fuzzer. The item limit used to count literal chunks, and
+    // how many of those arrive is decided by the network: one when a response
+    // is read whole, one per byte when it trickles. The same response then
+    // fitted the limit or did not, depending on timing.
+    crimson::imap::Parser::Limits limits;
+    limits.max_items = 8;
+    const std::string input = "* XSTUFF (a b) {40}\r\n" + std::string(40, 'x') + " done\r\n";
+
+    const Parsed whole = parse_all(input, {}, limits);
+    CHECK_MSG(!whole.error, whole.error_text());
+    const Parsed trickled = parse_all(input, std::vector<std::size_t>(input.size(), 1), limits);
+    CHECK_MSG(trickled.summary() == whole.summary(), "one byte per read: " + trickled.summary());
+}
+
 CRIMSON_TEST(imap_parser, parsing_does_not_depend_on_how_the_input_is_split) {
     const std::string input =
         "* OK [CAPABILITY IMAP4rev1 IDLE] ready\r\n"
