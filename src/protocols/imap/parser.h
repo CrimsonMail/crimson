@@ -93,6 +93,10 @@ private:
     [[nodiscard]] std::expected<void, ReadError> parse_tagged(std::string tag, Response& out);
     [[nodiscard]] std::expected<void, ReadError> parse_untagged(Response& out);
     [[nodiscard]] std::expected<StatusResponse, ReadError> parse_status(StatusKind kind);
+    [[nodiscard]] std::expected<Capabilities, ReadError> parse_capabilities();
+    [[nodiscard]] std::expected<MailboxListing, ReadError> parse_mailbox_listing();
+    [[nodiscard]] std::expected<MailboxStatus, ReadError> parse_mailbox_status();
+    [[nodiscard]] std::expected<SearchResults, ReadError> parse_search_results();
     [[nodiscard]] std::expected<ResponseCode, ReadError> parse_response_code();
     [[nodiscard]] std::expected<UnknownResponse, ReadError> parse_unknown(std::string name);
 

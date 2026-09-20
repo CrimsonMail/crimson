@@ -346,6 +346,55 @@ std::expected<void, ReadError> Parser::parse_untagged(Response& out) {
         return {};
     }
 
+    if (token_.is_atom("CAPABILITY")) {
+        auto capabilities = parse_capabilities();
+        if (!capabilities) {
+            return std::unexpected(capabilities.error());
+        }
+        out = UntaggedResponse{std::move(*capabilities)};
+        return {};
+    }
+
+    // LSUB has LIST's shape, and so does Gmail's older XLIST.
+    if (token_.is_atom("LIST") || token_.is_atom("LSUB") || token_.is_atom("XLIST")) {
+        auto listing = parse_mailbox_listing();
+        if (!listing) {
+            return std::unexpected(listing.error());
+        }
+        out = UntaggedResponse{std::move(*listing)};
+        return {};
+    }
+
+    if (token_.is_atom("STATUS")) {
+        auto status = parse_mailbox_status();
+        if (!status) {
+            return std::unexpected(status.error());
+        }
+        out = UntaggedResponse{std::move(*status)};
+        return {};
+    }
+
+    if (token_.is_atom("SEARCH")) {
+        auto results = parse_search_results();
+        if (!results) {
+            return std::unexpected(results.error());
+        }
+        out = UntaggedResponse{std::move(*results)};
+        return {};
+    }
+
+    if (token_.is_atom("FLAGS")) {
+        auto flags = read_flag_list();
+        if (!flags) {
+            return std::unexpected(flags.error());
+        }
+        if (auto end = expect_end_of_line(); !end) {
+            return std::unexpected(end.error());
+        }
+        out = UntaggedResponse{MailboxFlags{std::move(*flags)}};
+        return {};
+    }
+
     auto unknown = parse_unknown(token_.raw);
     if (!unknown) {
         return std::unexpected(unknown.error());
@@ -565,6 +614,191 @@ std::expected<ResponseCode, ReadError> Parser::parse_response_code() {
             token_.is(TokenKind::quoted) || token_.is(TokenKind::nil)) {
             code.arguments.emplace_back(token_.value());
         }
+    }
+}
+
+std::expected<Capabilities, ReadError> Parser::parse_capabilities() {
+    Capabilities capabilities;
+    for (std::size_t count = 0;; ++count) {
+        if (count > limits_.max_items) {
+            return std::unexpected(malformed());
+        }
+        const auto got = read(LexMode::normal);
+        if (!got) {
+            return std::unexpected(got.error());
+        }
+        if (*got == ReadStatus::end) {
+            return std::unexpected(malformed());
+        }
+        if (token_.is(TokenKind::eol)) {
+            return capabilities;
+        }
+        if (!token_.is(TokenKind::atom)) {
+            return std::unexpected(malformed());
+        }
+        capabilities.names.emplace_back(token_.raw);
+    }
+}
+
+std::expected<MailboxListing, ReadError> Parser::parse_mailbox_listing() {
+    MailboxListing listing;
+
+    if (auto open = expect(TokenKind::lparen); !open) {
+        return std::unexpected(open.error());
+    }
+    for (std::size_t count = 0;; ++count) {
+        if (count > limits_.max_items) {
+            return std::unexpected(malformed());
+        }
+        const auto attribute = read(LexMode::normal);
+        if (!attribute) {
+            return std::unexpected(attribute.error());
+        }
+        if (*attribute == ReadStatus::end) {
+            return std::unexpected(malformed());
+        }
+        if (token_.is(TokenKind::rparen)) {
+            break;
+        }
+        if (!token_.is(TokenKind::atom)) {
+            return std::unexpected(malformed());
+        }
+        listing.attributes.emplace_back(token_.raw);
+    }
+
+    // The hierarchy delimiter: one character, or NIL for a flat namespace.
+    const auto delimiter = read(LexMode::normal);
+    if (!delimiter) {
+        return std::unexpected(delimiter.error());
+    }
+    if (*delimiter == ReadStatus::end) {
+        return std::unexpected(malformed());
+    }
+    if (token_.is(TokenKind::quoted)) {
+        const std::string_view value = token_.value();
+        if (value.size() != 1) {
+            return std::unexpected(malformed());
+        }
+        listing.delimiter = value.front();
+    } else if (!token_.is(TokenKind::nil)) {
+        return std::unexpected(malformed());
+    }
+
+    // The name is an astring: Gmail's "[Gmail]/All Mail" arrives quoted, but
+    // the grammar allows it unquoted, and then the brackets belong to it.
+    auto name = read_astring();
+    if (!name) {
+        return std::unexpected(name.error());
+    }
+    listing.name = std::move(*name);
+
+    if (auto end = expect_end_of_line(); !end) {
+        return std::unexpected(end.error());
+    }
+    return listing;
+}
+
+std::expected<MailboxStatus, ReadError> Parser::parse_mailbox_status() {
+    MailboxStatus status;
+    auto name = read_astring();
+    if (!name) {
+        return std::unexpected(name.error());
+    }
+    status.mailbox = std::move(*name);
+
+    if (auto open = expect(TokenKind::lparen); !open) {
+        return std::unexpected(open.error());
+    }
+    for (std::size_t count = 0;; ++count) {
+        if (count > limits_.max_items) {
+            return std::unexpected(malformed());
+        }
+        const auto item = read(LexMode::normal);
+        if (!item) {
+            return std::unexpected(item.error());
+        }
+        if (*item == ReadStatus::end) {
+            return std::unexpected(malformed());
+        }
+        if (token_.is(TokenKind::rparen)) {
+            break;
+        }
+        if (!token_.is(TokenKind::atom)) {
+            return std::unexpected(malformed());
+        }
+        const Token name_token = token_;
+        auto value = read_number();
+        if (!value) {
+            return std::unexpected(value.error());
+        }
+        const auto small = static_cast<std::uint32_t>(*value);
+        if (name_token.is_atom("MESSAGES")) {
+            status.messages = small;
+        } else if (name_token.is_atom("RECENT")) {
+            status.recent = small;
+        } else if (name_token.is_atom("UIDNEXT")) {
+            status.uid_next = small;
+        } else if (name_token.is_atom("UIDVALIDITY")) {
+            status.uid_validity = small;
+        } else if (name_token.is_atom("UNSEEN")) {
+            status.unseen = small;
+        } else if (name_token.is_atom("HIGHESTMODSEQ")) {
+            status.highest_mod_sequence = *value;
+        } else if (name_token.is_atom("SIZE")) {
+            status.size = *value;
+        }
+        // An item Crimson does not know is read and dropped: its value still
+        // has to be consumed, or the rest of the line is misread.
+    }
+
+    if (auto end = expect_end_of_line(); !end) {
+        return std::unexpected(end.error());
+    }
+    return status;
+}
+
+std::expected<SearchResults, ReadError> Parser::parse_search_results() {
+    SearchResults results;
+    for (std::size_t count = 0;; ++count) {
+        if (count > limits_.max_items) {
+            return std::unexpected(malformed());
+        }
+        const auto item = read(LexMode::normal);
+        if (!item) {
+            return std::unexpected(item.error());
+        }
+        if (*item == ReadStatus::end) {
+            return std::unexpected(malformed());
+        }
+        if (token_.is(TokenKind::eol)) {
+            return results;
+        }
+        if (token_.is(TokenKind::number)) {
+            results.numbers.push_back(static_cast<std::uint32_t>(token_.number));
+            continue;
+        }
+        // CONDSTORE ends the list with (MODSEQ 917162500).
+        if (token_.is(TokenKind::lparen)) {
+            if (auto name = expect(TokenKind::atom); !name) {
+                return std::unexpected(name.error());
+            }
+            if (!token_.is_atom("MODSEQ")) {
+                return std::unexpected(malformed());
+            }
+            auto value = read_number();
+            if (!value) {
+                return std::unexpected(value.error());
+            }
+            results.mod_sequence = *value;
+            if (auto close = expect(TokenKind::rparen); !close) {
+                return std::unexpected(close.error());
+            }
+            if (auto end = expect_end_of_line(); !end) {
+                return std::unexpected(end.error());
+            }
+            return results;
+        }
+        return std::unexpected(malformed());
     }
 }
 

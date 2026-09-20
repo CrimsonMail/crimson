@@ -189,6 +189,116 @@ CRIMSON_TEST(imap_parser, an_unknown_response_with_a_literal_does_not_desynchron
     CHECK_EQ(tagged.status.text, std::string{"still here"});
 }
 
+// --- Data responses ------------------------------------------------------------
+
+CRIMSON_TEST(imap_parser, the_capability_response) {
+    const Parsed parsed = parse_all(
+        "* CAPABILITY IMAP4rev1 IMAP4rev2 LITERAL+ AUTH=PLAIN AUTH=XOAUTH2 X-GM-EXT-1\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& untagged = std::get<UntaggedResponse>(parsed.responses[0]);
+    const auto& capabilities = std::get<crimson::imap::Capabilities>(untagged.body);
+    CHECK_EQ(capabilities.names.size(), std::size_t{6});
+    CHECK(capabilities.has("IMAP4rev2"));
+    CHECK(capabilities.has("auth=xoauth2"));
+    CHECK(!capabilities.has("IDLE"));
+}
+
+CRIMSON_TEST(imap_parser, list_responses) {
+    const Parsed parsed = parse_all(
+        "* LIST (\\HasNoChildren \\Sent) \"/\" \"Sent Items\"\r\n"
+        "* LIST (\\HasChildren) \"/\" [Gmail]\r\n"
+        "* LIST () NIL INBOX\r\n"
+        "* LSUB (\\Noselect) \".\" \"news.\"\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    CHECK_EQ(parsed.responses.size(), std::size_t{4});
+
+    const auto listing = [&parsed](std::size_t index) -> const crimson::imap::MailboxListing& {
+        return std::get<crimson::imap::MailboxListing>(
+            std::get<UntaggedResponse>(parsed.responses.at(index)).body);
+    };
+
+    CHECK_EQ(listing(0).name, std::string{"Sent Items"});
+    CHECK_EQ(*listing(0).delimiter, '/');
+    CHECK(listing(0).has_attribute("\\sent"));       // attributes are case-insensitive
+    CHECK(!listing(0).has_attribute("\\Noselect"));
+
+    // An unquoted mailbox name whose brackets belong to the name. This is the
+    // case the lexer's astring mode exists for.
+    CHECK_EQ(listing(1).name, std::string{"[Gmail]"});
+
+    // NIL means a flat namespace, not a delimiter called "NIL".
+    CHECK(!listing(2).delimiter.has_value());
+    CHECK_EQ(listing(2).name, std::string{"INBOX"});
+    CHECK_EQ(listing(2).attributes.size(), std::size_t{0});
+
+    CHECK_EQ(*listing(3).delimiter, '.');
+}
+
+CRIMSON_TEST(imap_parser, status_responses) {
+    const Parsed parsed = parse_all(
+        "* STATUS blurdybloop (MESSAGES 231 UIDNEXT 44292 UNSEEN 3 HIGHESTMODSEQ 7183 XQUOTA 42)\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& status = std::get<crimson::imap::MailboxStatus>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+    CHECK_EQ(status.mailbox, std::string{"blurdybloop"});
+    CHECK_EQ(*status.messages, std::uint32_t{231});
+    CHECK_EQ(*status.uid_next, std::uint32_t{44292});
+    CHECK_EQ(*status.unseen, std::uint32_t{3});
+    CHECK_EQ(*status.highest_mod_sequence, std::uint64_t{7183});
+    CHECK(!status.recent.has_value());
+    // XQUOTA is unknown: its value still had to be consumed, or the closing
+    // parenthesis would have been misread.
+}
+
+CRIMSON_TEST(imap_parser, search_responses) {
+    const Parsed parsed = parse_all(
+        "* SEARCH 2 84 882\r\n* SEARCH\r\n* SEARCH 2 5 (MODSEQ 917162500)\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+
+    const auto results = [&parsed](std::size_t index) -> const crimson::imap::SearchResults& {
+        return std::get<crimson::imap::SearchResults>(
+            std::get<UntaggedResponse>(parsed.responses.at(index)).body);
+    };
+    CHECK_EQ(results(0).numbers.size(), std::size_t{3});
+    CHECK_EQ(results(0).numbers[2], std::uint32_t{882});
+    CHECK_EQ(results(1).numbers.size(), std::size_t{0});  // nothing matched
+    CHECK_EQ(*results(2).mod_sequence, std::uint64_t{917162500});
+}
+
+CRIMSON_TEST(imap_parser, flags_and_counts) {
+    const Parsed parsed = parse_all(
+        "* FLAGS (\\Answered \\Seen $Forwarded)\r\n* 172 EXISTS\r\n* 1 RECENT\r\n* 44 EXPUNGE\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    CHECK_EQ(parsed.responses.size(), std::size_t{4});
+
+    const auto& flags = std::get<crimson::imap::MailboxFlags>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+    CHECK(flags.flags.answered);
+    CHECK(flags.flags.seen);
+    CHECK(flags.flags.has("$Forwarded"));
+    CHECK(!flags.flags.accepts_new_keywords);
+
+    const auto count = [&parsed](std::size_t index) -> const crimson::imap::MailboxCount& {
+        return std::get<crimson::imap::MailboxCount>(
+            std::get<UntaggedResponse>(parsed.responses.at(index)).body);
+    };
+    CHECK_EQ(count(1).kind, crimson::imap::MailboxCount::Kind::exists);
+    CHECK_EQ(count(1).number, std::uint32_t{172});
+    CHECK_EQ(count(2).kind, crimson::imap::MailboxCount::Kind::recent);
+    CHECK_EQ(count(3).kind, crimson::imap::MailboxCount::Kind::expunge);
+    CHECK_EQ(count(3).number, std::uint32_t{44});
+}
+
+CRIMSON_TEST(imap_parser, a_mailbox_name_sent_as_a_literal) {
+    // Names with 8-bit characters arrive as literals. The parser has to read
+    // the content, not just note that a literal happened.
+    const Parsed parsed = parse_all("* LIST () \"/\" {7}\r\nArchive\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& listing = std::get<crimson::imap::MailboxListing>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+    CHECK_EQ(listing.name, std::string{"Archive"});
+}
+
 CRIMSON_TEST(imap_parser, malformed_responses_are_refused) {
     // No tag, no * and no +.
     CHECK_EQ(parse_all("(oops) OK\r\n").syntax_error()->kind, SyntaxErrorKind::unexpected_token);

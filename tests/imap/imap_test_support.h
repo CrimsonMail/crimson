@@ -246,6 +246,46 @@ inline std::string describe(const crimson::imap::UntaggedBody& body) {
                 return "status " + describe(value);
             } else if constexpr (std::is_same_v<Kind, crimson::imap::UnknownResponse>) {
                 return "unknown " + value.name + " '" + value.text + "'";
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::Capabilities>) {
+                std::string text = "capabilities";
+                for (const std::string& name : value.names) {
+                    text += " " + name;
+                }
+                return text;
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::MailboxListing>) {
+                std::string text = "list '" + value.name + "' delimiter=";
+                text += value.delimiter ? std::string{*value.delimiter} : std::string{"NIL"};
+                for (const std::string& attribute : value.attributes) {
+                    text += " " + attribute;
+                }
+                return text;
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::MailboxStatus>) {
+                const auto number = [](const auto& optional) {
+                    return optional ? std::to_string(*optional) : std::string{"-"};
+                };
+                return "status-of '" + value.mailbox + "' messages=" + number(value.messages) +
+                       " uidnext=" + number(value.uid_next) + " uidvalidity=" + number(value.uid_validity) +
+                       " unseen=" + number(value.unseen) + " modseq=" + number(value.highest_mod_sequence);
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::SearchResults>) {
+                std::string text = "search";
+                for (const std::uint32_t number : value.numbers) {
+                    text += " " + std::to_string(number);
+                }
+                if (value.mod_sequence) {
+                    text += " modseq=" + std::to_string(*value.mod_sequence);
+                }
+                return text;
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::MailboxFlags>) {
+                std::string text = "flags";
+                text += value.flags.seen ? " seen" : "";
+                text += value.flags.answered ? " answered" : "";
+                text += value.flags.accepts_new_keywords ? " *" : "";
+                for (const std::string& keyword : value.flags.keywords) {
+                    text += " " + keyword;
+                }
+                return text;
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::MailboxCount>) {
+                return std::string{to_string(value.kind)} + " " + std::to_string(value.number);
             } else {
                 return "other";
             }
