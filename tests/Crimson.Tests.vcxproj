@@ -54,6 +54,7 @@
     <ClCompile Include="harness.cpp" />
     <ClCompile Include="imap\test_fixtures.cpp" />
     <ClCompile Include="imap\test_lexer.cpp" />
+    <ClCompile Include="imap\test_parser.cpp" />
     <ClCompile Include="imap\test_response_reader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="net\echo_server.cpp" />

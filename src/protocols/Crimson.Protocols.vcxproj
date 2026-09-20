@@ -40,6 +40,8 @@
 
   <ItemGroup>
     <ClInclude Include="imap\lexer.h" />
+    <ClInclude Include="imap\parser.h" />
+    <ClInclude Include="imap\response.h" />
     <ClInclude Include="imap\response_reader.h" />
     <ClInclude Include="imap\syntax_error.h" />
     <ClInclude Include="imap\token.h" />
@@ -47,6 +49,8 @@
 
   <ItemGroup>
     <ClCompile Include="imap\lexer.cpp" />
+    <ClCompile Include="imap\parser.cpp" />
+    <ClCompile Include="imap\response.cpp" />
     <ClCompile Include="imap\response_reader.cpp" />
   </ItemGroup>
 

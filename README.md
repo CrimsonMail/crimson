@@ -93,7 +93,7 @@ and `LOGOUT`, never credentials — and to fuzz it:
 
 ```
 x64\Debug\crimson-imap-probe.exe imap.gmail.com
-scripts\fuzz.cmd imap_lexer 600    ten minutes; see ADR 0013
+scripts\fuzz.cmd imap_lexer 600     ten minutes; imap_parser too. See ADR 0013
 ```
 
 ## Repository layout
