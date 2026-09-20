@@ -9,11 +9,14 @@ and sessions follow in Step 4.
 ## Layering
 
 ```
-        IMAP parser, commands, session       (Step 4)
+        commands, session                    (Step 4, in progress)
                      |
                      v
-        imap::ResponseReader   <- reads any ByteStream; knows a response's shape
-                     |
+        imap::Parser           <- typed responses; chooses the lexer's mode
+                     |                            from the grammar
+                     v
+        imap::ResponseReader   <- reads any ByteStream; can also frame
+                     |            responses on its own, without a parser
                      v
         imap::Lexer            <- pure, no I/O; resumable at any byte
                      |
@@ -129,7 +132,8 @@ servers really do send status responses without the text the grammar demands.
 x64\Debug\crimson-imap-probe.exe                         imap.gmail.com, printed
 x64\Debug\crimson-imap-probe.exe outlook.office365.com   another provider
 x64\Debug\crimson-imap-probe.exe --record file.imap host also write a fixture
-scripts\fuzz.cmd imap_lexer 600                          fuzz for ten minutes
+scripts\fuzz.cmd imap_lexer 600                          fuzz the tokenizer
+scripts\fuzz.cmd imap_parser 600                         fuzz the parser
 ```
 
 The probe sends `CAPABILITY` and `LOGOUT` and nothing else, never credentials.
@@ -139,9 +143,60 @@ for fuzzing.
 
 ---
 
+## Responses
+
+`imap::Parser` turns tokens into typed values: `TaggedResponse`,
+`UntaggedResponse` and `ContinuationRequest`, where an untagged response is a
+status, capabilities, a mailbox listing, a mailbox status, search results, a
+fetch result, a count, a flag list, or something Crimson does not recognise.
+
+```cpp
+crimson::imap::ResponseReader reader{stream};
+crimson::imap::Parser parser{reader};
+
+crimson::imap::Response response;
+while (auto got = parser.next(response)) {
+    if (*got == crimson::imap::ParseStatus::end) break;   // the server closed
+    // ... std::visit over the response
+}
+```
+
+**It chooses the lexer's mode from the grammar**, which is the whole point of
+the modes: a mailbox name is read as an astring, so `[Gmail]/Drafts` unquoted
+keeps its brackets, while the same bytes elsewhere would be three tokens.
+
+**It is forgiving about meaning and strict about structure.** An unknown
+response, an unknown response code and an unknown FETCH item are all kept
+rather than refused — servers send extensions constantly, and one of them must
+not end a session. A code that contradicts its own name, or never closes its
+bracket, is kept as an unrecognised code and the line is read to its end. But
+a response that cannot be read at all is a `SyntaxError`, and the connection
+goes: the framing can no longer be trusted.
+
+**An unknown response is skipped as grammar, not as text.** It may contain a
+literal, and a literal's content has to be consumed as content. Skipped as
+text, its bytes would be read as the next response.
+
+**Large bodies are streamed.** A `BODY[...]` section over
+`Limits::max_inline_literal` (1 MiB) is handed to a sink in the pieces it
+arrives in, and only its size is recorded on the response. Step 7 writes those
+straight to disk.
+
+**Limits are counted in units the network cannot change.** This is subtler
+than it sounds, and the fuzzer caught it the first time it ran: counting
+literal chunks against an item limit makes the same response pass or fail
+depending on how it was divided in transit.
+
+What the parser deliberately leaves alone: `BODYSTRUCTURE` and a bare `BODY`
+are noted as items the server offered and skipped, because their nested part
+descriptions belong with MIME in Step 7. Envelope strings stay exactly as
+sent; Step 6 parses the real headers, including encoded words. `INTERNALDATE`
+is the one date IMAP defines itself, so it is parsed here — and one that
+cannot be read leaves the field unset rather than refusing the message.
+
+---
+
 ## What this layer deliberately does not do
 
-No typed responses, no command serialization, no authentication, no session
-state. The reader knows where free text starts and nothing about what any
-response means. That is Step 4, and it will choose lexer modes from the
-grammar rather than from this layer's guesses.
+No command serialization, no authentication, no session state: those are the
+rest of Step 4. No MIME, no RFC 5322 header parsing, no local store.
