@@ -286,6 +286,35 @@ inline std::string describe(const crimson::imap::UntaggedBody& body) {
                 return text;
             } else if constexpr (std::is_same_v<Kind, crimson::imap::MailboxCount>) {
                 return std::string{to_string(value.kind)} + " " + std::to_string(value.number);
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::FetchResponse>) {
+                std::string text = "fetch " + std::to_string(value.sequence);
+                if (value.uid) {
+                    text += " uid=" + std::to_string(*value.uid);
+                }
+                if (value.size) {
+                    text += " size=" + std::to_string(*value.size);
+                }
+                if (value.flags) {
+                    text += std::string{" flags:"} + (value.flags->seen ? "seen" : "-");
+                }
+                if (value.internal_date) {
+                    text += " date=" + std::to_string(value.internal_date->time_since_epoch().count());
+                }
+                if (value.envelope) {
+                    text += " subject='" + value.envelope->subject + "' from=" +
+                            std::to_string(value.envelope->from.size());
+                }
+                if (value.mod_sequence) {
+                    text += " modseq=" + std::to_string(*value.mod_sequence);
+                }
+                for (const crimson::imap::BodySection& section : value.sections) {
+                    text += " [" + section.specifier + "]=" + std::to_string(section.size) +
+                            (section.streamed ? "(streamed)" : "") + ":" + section.content;
+                }
+                for (const std::string& item : value.unknown_items) {
+                    text += " +" + item;
+                }
+                return text;
             } else {
                 return "other";
             }

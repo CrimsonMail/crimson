@@ -118,6 +118,35 @@ CRIMSON_TEST(imap_fixtures, provider_greetings_are_untagged_ok) {
     }
 }
 
+CRIMSON_TEST(imap_fixtures, each_parses_into_typed_responses) {
+    // Tokenizing is not understanding. Every transcript, including the real
+    // provider sessions, must also come out as typed responses.
+    for (const Fixture& fixture : load_fixtures()) {
+        const crimson::test::imap::Parsed parsed = crimson::test::imap::parse_all(fixture.bytes);
+        CHECK_MSG(!parsed.error, fixture.name + ": " + parsed.error_text());
+        CHECK_MSG(parsed.ended_cleanly, fixture.name + " did not end between responses");
+        CHECK_MSG(!parsed.responses.empty(), fixture.name + " produced no responses");
+    }
+}
+
+CRIMSON_TEST(imap_fixtures, parsing_does_not_depend_on_the_division_either) {
+    for (const Fixture& fixture : load_fixtures()) {
+        const std::string whole = crimson::test::imap::parse_all(fixture.bytes).summary();
+        for (std::size_t split = 1; split < fixture.bytes.size(); ++split) {
+            const std::string divided =
+                crimson::test::imap::parse_all(fixture.bytes,
+                                               {split, fixture.bytes.size() - split})
+                    .summary();
+            CHECK_MSG(divided == whole, fixture.name + ", split at " + std::to_string(split));
+        }
+        const std::string trickled =
+            crimson::test::imap::parse_all(fixture.bytes,
+                                           std::vector<std::size_t>(fixture.bytes.size(), 1))
+                .summary();
+        CHECK_MSG(trickled == whole, fixture.name + ", one byte per read");
+    }
+}
+
 CRIMSON_TEST(imap_fixtures, a_split_at_every_byte_changes_nothing) {
     for (const Fixture& fixture : load_fixtures()) {
         const Tokenized whole = read_framed(fixture.bytes);

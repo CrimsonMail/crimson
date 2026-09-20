@@ -299,13 +299,194 @@ CRIMSON_TEST(imap_parser, a_mailbox_name_sent_as_a_literal) {
     CHECK_EQ(listing.name, std::string{"Archive"});
 }
 
+// --- FETCH ---------------------------------------------------------------------
+
+CRIMSON_TEST(imap_parser, fetch_metadata) {
+    const Parsed parsed = parse_all(
+        "* 12 FETCH (FLAGS (\\Seen $Forwarded) UID 4827313 RFC822.SIZE 4286 "
+        "INTERNALDATE \"17-Jul-1996 02:44:25 -0700\" MODSEQ (7011))\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& fetch = std::get<crimson::imap::FetchResponse>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+
+    CHECK_EQ(fetch.sequence, std::uint32_t{12});
+    CHECK_EQ(*fetch.uid, std::uint32_t{4827313});
+    CHECK_EQ(*fetch.size, std::uint32_t{4286});
+    CHECK(fetch.flags->seen);
+    CHECK(fetch.flags->has("$Forwarded"));
+    CHECK_EQ(*fetch.mod_sequence, std::uint64_t{7011});
+
+    // 1996-07-17 02:44:25 at -0700 is 09:44:25 UTC.
+    CHECK(fetch.internal_date.has_value());
+    CHECK_EQ(fetch.internal_date->time_since_epoch().count(), std::int64_t{837596665});
+}
+
+CRIMSON_TEST(imap_parser, an_unreadable_internaldate_is_left_unset_not_refused) {
+    const Parsed parsed = parse_all("* 1 FETCH (INTERNALDATE \"not a date at all yet\" UID 9)\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& fetch = std::get<crimson::imap::FetchResponse>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+    CHECK(!fetch.internal_date.has_value());
+    CHECK_EQ(*fetch.uid, std::uint32_t{9});  // the rest of the message still arrives
+}
+
+CRIMSON_TEST(imap_parser, fetch_envelope) {
+    const Parsed parsed = parse_all(
+        "* 12 FETCH (ENVELOPE (\"Wed, 17 Jul 1996 02:23:25 -0700 (PDT)\" "
+        "\"IMAP4rev1 WG mtg summary and minutes\" "
+        "((\"Terry Gray\" NIL \"gray\" \"cac.washington.edu\")) "
+        "((\"Terry Gray\" NIL \"gray\" \"cac.washington.edu\")) "
+        "((\"Terry Gray\" NIL \"gray\" \"cac.washington.edu\")) "
+        "((NIL NIL \"imap\" \"cac.washington.edu\")) "
+        "((NIL NIL \"minutes\" \"CNRI.Reston.VA.US\")(\"John Klensin\" NIL \"KLENSIN\" \"MIT.EDU\")) "
+        "NIL NIL \"<B27397-0100000@cac.washington.edu>\"))\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& envelope = *std::get<crimson::imap::FetchResponse>(
+                                std::get<UntaggedResponse>(parsed.responses[0]).body)
+                                .envelope;
+
+    CHECK_EQ(envelope.subject, std::string{"IMAP4rev1 WG mtg summary and minutes"});
+    CHECK_EQ(envelope.from.size(), std::size_t{1});
+    CHECK_EQ(envelope.from[0].name, std::string{"Terry Gray"});
+    CHECK_EQ(envelope.from[0].mailbox, std::string{"gray"});
+    CHECK_EQ(envelope.from[0].host, std::string{"cac.washington.edu"});
+    CHECK_EQ(envelope.to.size(), std::size_t{1});
+    CHECK_EQ(envelope.cc.size(), std::size_t{2});
+    CHECK_EQ(envelope.cc[1].mailbox, std::string{"KLENSIN"});
+    CHECK_EQ(envelope.bcc.size(), std::size_t{0});   // NIL
+    CHECK_EQ(envelope.in_reply_to, std::string{});   // NIL
+    CHECK_EQ(envelope.message_id, std::string{"<B27397-0100000@cac.washington.edu>"});
+    // The date stays as sent: RFC 5322 parsing is Step 6.
+    CHECK_EQ(envelope.date, std::string{"Wed, 17 Jul 1996 02:23:25 -0700 (PDT)"});
+}
+
+CRIMSON_TEST(imap_parser, fetch_body_sections) {
+    const std::string header = "Subject: hi\r\n\r\n";
+    const Parsed parsed = parse_all(
+        "* 12 FETCH (BODY[HEADER] {" + std::to_string(header.size()) + "}\r\n" + header +
+        " BODY[TEXT]<0> \"partial\" BODY[1.2] NIL UID 7)\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& fetch = std::get<crimson::imap::FetchResponse>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+
+    CHECK_EQ(fetch.sections.size(), std::size_t{3});
+    CHECK_EQ(fetch.sections[0].specifier, std::string{"HEADER"});
+    CHECK_EQ(fetch.sections[0].content, header);
+    CHECK(!fetch.sections[0].streamed);
+
+    CHECK_EQ(fetch.sections[1].specifier, std::string{"TEXT"});
+    CHECK_EQ(*fetch.sections[1].origin, std::uint32_t{0});
+    CHECK_EQ(fetch.sections[1].content, std::string{"partial"});
+
+    CHECK_EQ(fetch.sections[2].specifier, std::string{"1.2"});
+    CHECK_EQ(fetch.sections[2].size, std::uint64_t{0});  // NIL: the part is absent
+    CHECK_EQ(*fetch.uid, std::uint32_t{7});
+}
+
+CRIMSON_TEST(imap_parser, a_section_specifier_with_a_list_keeps_its_shape) {
+    const Parsed parsed =
+        parse_all("* 1 FETCH (BODY[HEADER.FIELDS (SUBJECT FROM)] {2}\r\nhi)\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& fetch = std::get<crimson::imap::FetchResponse>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+    CHECK_EQ(fetch.sections[0].specifier, std::string{"HEADER.FIELDS (SUBJECT FROM)"});
+    CHECK_EQ(fetch.sections[0].content, std::string{"hi"});
+}
+
+CRIMSON_TEST(imap_parser, a_large_body_is_streamed_not_held) {
+    // The point of the sink: a body with no useful upper bound must never
+    // have to fit in memory.
+    const std::string body(4096, 'x');
+    crimson::imap::Parser::Limits limits;
+    limits.max_inline_literal = 1024;
+
+    std::string received;
+    std::size_t calls = 0;
+    bool finished = false;
+    const std::string input =
+        "* 1 FETCH (BODY[] {" + std::to_string(body.size()) + "}\r\n" + body + ")\r\n";
+
+    crimson::test::imap::ChunkedSource source{input, std::vector<std::size_t>(input.size(), 64)};
+    crimson::imap::ResponseReader reader{source};
+    crimson::imap::Parser parser{reader, limits};
+    parser.stream_large_literals(
+        [&](std::string_view specifier, std::span<const std::byte> chunk, bool last) {
+            CHECK_EQ(std::string{specifier}, std::string{});
+            received.append(reinterpret_cast<const char*>(chunk.data()), chunk.size());
+            finished = finished || last;
+            ++calls;
+        });
+
+    crimson::imap::Response response;
+    const auto got = parser.next(response);
+    CHECK(got.has_value());
+    const auto& fetch =
+        std::get<crimson::imap::FetchResponse>(std::get<UntaggedResponse>(response).body);
+
+    CHECK(fetch.sections[0].streamed);
+    CHECK_EQ(fetch.sections[0].size, std::uint64_t{body.size()});
+    CHECK(fetch.sections[0].content.empty());  // never held
+    CHECK_EQ(received, body);                  // but delivered in full
+    CHECK(finished);
+    CHECK(calls > 1);  // in pieces, as it arrived
+}
+
+CRIMSON_TEST(imap_parser, bodystructure_is_noted_and_skipped_for_now) {
+    // Step 7 parses this properly, with MIME. Until then its value must still
+    // be consumed, or everything after it is misread.
+    const Parsed parsed = parse_all(
+        "* 3 FETCH (BODYSTRUCTURE ((\"TEXT\" \"PLAIN\" (\"CHARSET\" \"US-ASCII\") NIL NIL \"7BIT\" 1152 23)"
+        "(\"TEXT\" \"PLAIN\" (\"CHARSET\" \"US-ASCII\" \"NAME\" \"cc.diff\") NIL NIL \"BASE64\" 4554 73) "
+        "\"MIXED\") UID 9 X-GM-LABELS (\\Inbox \"Work stuff\"))\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    const auto& fetch = std::get<crimson::imap::FetchResponse>(
+        std::get<UntaggedResponse>(parsed.responses[0]).body);
+    CHECK_EQ(*fetch.uid, std::uint32_t{9});
+    CHECK_EQ(fetch.unknown_items.size(), std::size_t{2});
+    CHECK_EQ(fetch.unknown_items[0], std::string{"BODYSTRUCTURE"});
+    CHECK_EQ(fetch.unknown_items[1], std::string{"X-GM-LABELS"});
+}
+
 CRIMSON_TEST(imap_parser, malformed_responses_are_refused) {
+    const auto expect_refused = [](const Parsed& parsed, const char* what) {
+        const auto error = parsed.syntax_error();
+        CHECK_MSG(error.has_value(), std::string{what} + ": expected a syntax error, got " +
+                                         parsed.error_text());
+        if (error) {
+            CHECK_EQ(error->kind, SyntaxErrorKind::unexpected_token);
+        }
+    };
+
     // No tag, no * and no +.
-    CHECK_EQ(parse_all("(oops) OK\r\n").syntax_error()->kind, SyntaxErrorKind::unexpected_token);
+    expect_refused(parse_all("(oops) OK\r\n"), "no tag");
     // A tag with no status keyword after it.
-    CHECK_EQ(parse_all("a1 FROBNICATE\r\n").syntax_error()->kind, SyntaxErrorKind::unexpected_token);
-    // A numeric code with no number.
-    CHECK_EQ(parse_all("* OK [UIDNEXT] hm\r\n").syntax_error()->kind, SyntaxErrorKind::unexpected_token);
+    expect_refused(parse_all("a1 FROBNICATE\r\n"), "no status keyword");
+    // A FETCH whose item list never closes.
+    expect_refused(parse_all("* 12 FETCH (FLAGS (\\Seen)\r\n"), "unclosed fetch");
+    // A LIST with no mailbox name.
+    expect_refused(parse_all("* LIST (\\Noselect) \"/\"\r\n"), "list without a name");
+}
+
+CRIMSON_TEST(imap_parser, a_broken_response_code_does_not_cost_the_message) {
+    // Structure inside a code is the server's business; Crimson's business is
+    // not to drop a connection over it. A code that does not match its own
+    // name, or never closes its bracket, is kept as an unrecognised code and
+    // the line is read to its end.
+    const Parsed parsed = parse_all(
+        "* OK [UIDNEXT] no number here\r\n"
+        "* OK [ALERT no closing bracket\r\n"
+        "a1 OK still talking\r\n");
+    CHECK_MSG(!parsed.error, parsed.error_text());
+    CHECK_EQ(parsed.responses.size(), std::size_t{3});
+
+    CHECK_EQ(untagged_status(parsed, 0).code.kind, ResponseCodeKind::other);
+    CHECK_EQ(untagged_status(parsed, 0).code.name, std::string{"UIDNEXT"});
+    CHECK_EQ(untagged_status(parsed, 0).text, std::string{"no number here"});
+
+    CHECK_EQ(untagged_status(parsed, 1).code.name, std::string{"ALERT"});
+    CHECK_EQ(untagged_status(parsed, 1).text, std::string{});  // the code ate the line
+
+    CHECK_EQ(std::get<TaggedResponse>(parsed.responses[2]).status.text, std::string{"still talking"});
 }
 
 CRIMSON_TEST(imap_parser, the_end_of_the_connection_is_reported_not_invented) {

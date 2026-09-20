@@ -13,6 +13,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "protocols/imap/lexer.h"
 #include "protocols/imap/response.h"
@@ -97,7 +98,20 @@ private:
     [[nodiscard]] std::expected<MailboxListing, ReadError> parse_mailbox_listing();
     [[nodiscard]] std::expected<MailboxStatus, ReadError> parse_mailbox_status();
     [[nodiscard]] std::expected<SearchResults, ReadError> parse_search_results();
-    [[nodiscard]] std::expected<ResponseCode, ReadError> parse_response_code();
+    [[nodiscard]] std::expected<FetchResponse, ReadError> parse_fetch(std::uint32_t sequence);
+    [[nodiscard]] std::expected<Envelope, ReadError> parse_envelope();
+    [[nodiscard]] std::expected<std::vector<Address>, ReadError> parse_address_list();
+    [[nodiscard]] std::expected<void, ReadError> parse_body_section(FetchResponse& fetch,
+                                                                    bool binary);
+
+    // Reads and discards one value of any shape: an atom, a parenthesised
+    // list, or a literal. An item Crimson does not know still has to be
+    // consumed, or the rest of the response is misread.
+    [[nodiscard]] std::expected<void, ReadError> skip_value();
+    // `line_ended` comes back true when a malformed code ran to the end of
+    // the line, so the caller knows there is no text left to read.
+    [[nodiscard]] std::expected<ResponseCode, ReadError> parse_response_code(bool& line_ended);
+    [[nodiscard]] std::expected<void, ReadError> recover_code(ResponseCode& code, bool& line_ended);
     [[nodiscard]] std::expected<UnknownResponse, ReadError> parse_unknown(std::string name);
 
     [[nodiscard]] ReadError malformed() const;
