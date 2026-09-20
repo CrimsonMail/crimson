@@ -1,0 +1,15 @@
+* OK [CAPABILITY IMAP4rev1 LITERAL+ SASL-IR LOGIN-REFERRALS ID ENABLE IDLE AUTH=PLAIN] Dovecot ready.
+* OK Try {5} braces are only text here
+* NO "an unbalanced quote
+* BAD [ALERT] brackets ] and [ everywhere
+* OK [XUNKNOWN some "text {5}] after the code
+* OK [ALERT no closing bracket
+* NO [ALERT] Quota {5} exceeded
++ Send the "rest now
+* NO [CANNOT] Mailbox name "[Gmail]" is reserved
++ YGgGCSqGSIb3EgECAgIBAAD/////6jcyG4GJ7Q==
++
+* LIST (\HasNoChildren) "/" "[Gmail]/All Mail"
+* LIST (\HasChildren \Noselect) "/" [Gmail]
+* BYE
+a1 OK   trailing spaces   

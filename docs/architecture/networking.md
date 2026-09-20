@@ -12,7 +12,7 @@ appears anywhere below `src/protocols/`.
 ## Layering
 
 ```
-        IMAP / SMTP / JMAP          (later steps)
+        IMAP (see imap.md) / SMTP / JMAP
                  |
                  v
           crimson::net::ByteStream  <- the seam everything above is written to
@@ -35,7 +35,8 @@ The split between `src/core/net/` and `src/platform/windows/net/` is enforced by
 the build, not by convention: `Crimson.Core` does not link
 `Crimson.Platform.Windows`, so core code physically cannot reach Winsock.
 `byte_stream.h` and `net_error.h` include no Windows headers at all, which is
-what will let the IMAP tokenizer and its tests compile without the Windows SDK.
+what lets `Crimson.Protocols`, home of the [IMAP tokenizer](imap.md), depend on
+`ByteStream` without depending on Windows.
 
 See [ADR 0007](../decisions/0007-byte-stream-abstraction.md) for why this is a
 runtime interface and not a template.
@@ -250,7 +251,8 @@ return half a response, three responses, or the tail of one and the head of the
 next. A parser that treats a read boundary as a message boundary works on a
 quiet local network and fails in production. This is why the tokenizer in Step 3
 must be incremental, and why the test suite includes a server that delivers a
-reply one byte at a time.
+reply one byte at a time. (It is: the IMAP tests replay real server traffic
+split at every byte position. See [imap.md](imap.md).)
 
 **12. Why does retry policy live above the socket layer?**
 Because the right policy depends on what is being attempted. An interactive

@@ -57,6 +57,14 @@ jobs:
         shell: cmd
         run: call "%GITHUB_WORKSPACE%\x64\${{ matrix.configuration }}\crimson-net-smoke.exe" example.com 80
 
+      # The IMAP tokenizer against a real mail server: greeting, CAPABILITY
+      # and LOGOUT, no credentials. Non-blocking for the same reason as the
+      # smoke test; the recorded fixtures are what the required tests use.
+      - name: IMAP probe against a real server
+        continue-on-error: true
+        shell: cmd
+        run: call "%GITHUB_WORKSPACE%\x64\${{ matrix.configuration }}\crimson-imap-probe.exe" imap.gmail.com
+
   lint:
     # Workflows are part of the supply chain, so their hardening rules are
     # checked by machine on every pull request instead of remembered in review:

@@ -27,7 +27,13 @@
 
 "area: imap":
   - changed-files:
-      - any-glob-to-any-file: "src/protocols/imap/**"
+      - any-glob-to-any-file:
+          - "src/protocols/imap/**"
+          - "tests/imap/**"
+          - "tests/fuzz/imap_*"
+          - "tests/fuzz/*.Imap*"
+          - "tests/fuzz/corpus/imap_*/**"
+          - "tools/imap-probe/**"
 
 "area: smtp":
   - changed-files:

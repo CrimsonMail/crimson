@@ -1,8 +1,8 @@
 name: nightly
 
-# Work too slow to justify running on every pull request. Right now that means
-# AddressSanitizer; as Crimson grows it will also carry the full parser corpus,
-# fuzz seeds and long integration runs.
+# Work too slow to justify running on every pull request: AddressSanitizer, a
+# flake check and parser fuzzing. As Crimson grows it will also carry the full
+# parser corpus and long integration runs.
 on:
   schedule:
     # 03:00 UTC daily. GitHub may delay scheduled runs under load, which is
@@ -73,3 +73,28 @@ jobs:
             echo --- run %%r ---
             call "%GITHUB_WORKSPACE%\x64\Debug\Crimson.Tests.exe" || exit /b 1
           )
+
+  # The tokenizer is the first line of defence against whatever a server
+  # sends, so it is fuzzed every night (ADR 0013). A crash fails this job,
+  # which workflow-health turns into a ci-health issue, and the input that
+  # caused it is kept as an artifact so the failure can be reproduced exactly:
+  #     x64\Release\crimson-fuzz-imap-lexer.exe <downloaded-crash-file>
+  fuzz:
+    name: Fuzz the IMAP tokenizer
+    runs-on: windows-2025
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fuzz for ten minutes
+        shell: cmd
+        run: call scripts\fuzz.cmd imap_lexer 600
+
+      - name: Keep the input that crashed it
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: imap-lexer-crash
+          path: obj/fuzz/imap_lexer/artifacts/
+          if-no-files-found: ignore
+          retention-days: 30

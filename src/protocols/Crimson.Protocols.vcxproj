@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <!-- Mail protocols: IMAP now, SMTP and the rest later.
+
+       This library references Crimson.Core and nothing else. It never
+       references Crimson.Platform.Windows and never includes a Windows
+       header, so protocol code is portable by construction rather than by
+       convention: reaching for Winsock or Schannel from here fails to link.
+       Protocol code talks to the network only through crimson::net::ByteStream. -->
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{8BFA4C71-EDFE-44D3-B8FB-51D5639E551B}</ProjectGuid>
+    <RootNamespace>crimson</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\build\Crimson.Toolset.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(MSBuildThisFileDirectory)..\..\build\Crimson.Common.props" />
+  </ImportGroup>
+
+  <ItemGroup>
+    <ClInclude Include="imap\lexer.h" />
+    <ClInclude Include="imap\response_reader.h" />
+    <ClInclude Include="imap\syntax_error.h" />
+    <ClInclude Include="imap\token.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="imap\lexer.cpp" />
+    <ClCompile Include="imap\response_reader.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\core\Crimson.Core.vcxproj">
+      <Project>{F7F39E0E-A94B-4E1D-8C89-2E893919B031}</Project>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
