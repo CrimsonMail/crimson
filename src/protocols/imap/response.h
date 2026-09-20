@@ -220,6 +220,30 @@ using Response = std::variant<TaggedResponse, UntaggedResponse, ContinuationRequ
     return "unknown";
 }
 
+[[nodiscard]] constexpr std::string_view to_string(ResponseCodeKind kind) noexcept {
+    switch (kind) {
+        case ResponseCodeKind::none:                 return "none";
+        case ResponseCodeKind::alert:                return "ALERT";
+        case ResponseCodeKind::badcharset:           return "BADCHARSET";
+        case ResponseCodeKind::capability:           return "CAPABILITY";
+        case ResponseCodeKind::parse:                return "PARSE";
+        case ResponseCodeKind::permanent_flags:      return "PERMANENTFLAGS";
+        case ResponseCodeKind::read_only:            return "READ-ONLY";
+        case ResponseCodeKind::read_write:           return "READ-WRITE";
+        case ResponseCodeKind::try_create:           return "TRYCREATE";
+        case ResponseCodeKind::uid_next:             return "UIDNEXT";
+        case ResponseCodeKind::uid_validity:         return "UIDVALIDITY";
+        case ResponseCodeKind::unseen:               return "UNSEEN";
+        case ResponseCodeKind::highest_mod_sequence: return "HIGHESTMODSEQ";
+        case ResponseCodeKind::no_mod_sequence:      return "NOMODSEQ";
+        case ResponseCodeKind::append_uid:           return "APPENDUID";
+        case ResponseCodeKind::copy_uid:             return "COPYUID";
+        case ResponseCodeKind::closed:               return "CLOSED";
+        case ResponseCodeKind::other:                return "other";
+    }
+    return "unknown";
+}
+
 [[nodiscard]] constexpr std::string_view to_string(MailboxCount::Kind kind) noexcept {
     switch (kind) {
         case MailboxCount::Kind::exists:  return "EXISTS";

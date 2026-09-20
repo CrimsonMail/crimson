@@ -16,12 +16,15 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "core/net/byte_stream.h"
 #include "protocols/imap/lexer.h"
+#include "protocols/imap/parser.h"
+#include "protocols/imap/response.h"
 #include "protocols/imap/response_reader.h"
 
 namespace crimson::test::imap {
@@ -181,6 +184,119 @@ inline std::string reassemble(const Tokenized& result) {
         bytes += token.bytes;
     }
     return bytes;
+}
+
+// --- Parsing -----------------------------------------------------------------
+
+// The result of parsing a whole transcript: the responses, how it ended, and
+// a comparable summary so the same input divided differently can be checked
+// for having produced the same meaning.
+struct Parsed {
+    std::vector<crimson::imap::Response> responses;
+    std::optional<crimson::imap::ReadError> error;
+    bool ended_cleanly = false;
+
+    [[nodiscard]] std::optional<SyntaxError> syntax_error() const {
+        if (error && std::holds_alternative<SyntaxError>(*error)) {
+            return std::get<SyntaxError>(*error);
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::string error_text() const {
+        if (!error) {
+            return "no error";
+        }
+        if (const auto syntax = syntax_error()) {
+            return std::string{to_string(syntax->kind)} + " at offset " + std::to_string(syntax->offset);
+        }
+        return "network error";
+    }
+
+    [[nodiscard]] std::string summary() const;
+};
+
+inline std::string describe(const crimson::imap::StatusResponse& status) {
+    std::string text = std::string{to_string(status.kind)};
+    if (status.code.kind != crimson::imap::ResponseCodeKind::none) {
+        text += " [" + status.code.name;
+        if (status.code.number) {
+            text += " " + std::to_string(*status.code.number);
+        }
+        if (status.code.capabilities) {
+            text += " x" + std::to_string(status.code.capabilities->names.size());
+        }
+        if (status.code.flags) {
+            text += " flags:" + std::to_string(status.code.flags->keywords.size()) +
+                    (status.code.flags->seen ? "+seen" : "");
+        }
+        for (const std::string& argument : status.code.arguments) {
+            text += " " + argument;
+        }
+        text += "]";
+    }
+    return text + " '" + status.text + "'";
+}
+
+inline std::string describe(const crimson::imap::UntaggedBody& body) {
+    return std::visit(
+        [](const auto& value) -> std::string {
+            using Kind = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Kind, crimson::imap::StatusResponse>) {
+                return "status " + describe(value);
+            } else if constexpr (std::is_same_v<Kind, crimson::imap::UnknownResponse>) {
+                return "unknown " + value.name + " '" + value.text + "'";
+            } else {
+                return "other";
+            }
+        },
+        body);
+}
+
+inline std::string Parsed::summary() const {
+    std::string text;
+    for (const crimson::imap::Response& response : responses) {
+        text += std::visit(
+            [](const auto& value) -> std::string {
+                using Kind = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<Kind, crimson::imap::TaggedResponse>) {
+                    return "tagged " + value.tag + " " + describe(value.status);
+                } else if constexpr (std::is_same_v<Kind, crimson::imap::UntaggedResponse>) {
+                    return "untagged " + describe(value.body);
+                } else {
+                    return "continuation '" + value.text + "'";
+                }
+            },
+            response);
+        text += "\n";
+    }
+    text += ended_cleanly ? "end\n" : (error ? error_text() + "\n" : "stopped\n");
+    return text;
+}
+
+// Parses `input`, delivered in `chunks` (the whole thing at once by default).
+inline Parsed parse_all(std::string_view input, std::vector<std::size_t> chunks = {},
+                        crimson::imap::Parser::Limits limits = {}) {
+    if (chunks.empty()) {
+        chunks.push_back(input.size());
+    }
+    ChunkedSource source{input, std::move(chunks)};
+    crimson::imap::ResponseReader reader{source};
+    crimson::imap::Parser parser{reader, limits};
+    Parsed parsed;
+    for (;;) {
+        crimson::imap::Response response;
+        const auto got = parser.next(response);
+        if (!got) {
+            parsed.error = got.error();
+            return parsed;
+        }
+        if (*got == crimson::imap::ParseStatus::end) {
+            parsed.ended_cleanly = true;
+            return parsed;
+        }
+        parsed.responses.push_back(std::move(response));
+    }
 }
 
 // Test transcripts live beside this header, in fixtures/. Located from this
