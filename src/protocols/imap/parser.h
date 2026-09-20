@@ -99,6 +99,8 @@ private:
     // Responses.
     [[nodiscard]] std::expected<void, ReadError> parse_tagged(std::string tag, Response& out);
     [[nodiscard]] std::expected<void, ReadError> parse_untagged(Response& out);
+    [[nodiscard]] std::expected<void, ReadError> parse_numbered(std::uint32_t number, Response& out);
+    [[nodiscard]] std::expected<void, ReadError> parse_named(Response& out);
     [[nodiscard]] std::expected<StatusResponse, ReadError> parse_status(StatusKind kind);
     [[nodiscard]] std::expected<Capabilities, ReadError> parse_capabilities();
     [[nodiscard]] std::expected<MailboxListing, ReadError> parse_mailbox_listing();

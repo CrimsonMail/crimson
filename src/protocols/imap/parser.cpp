@@ -368,56 +368,53 @@ std::expected<void, ReadError> Parser::parse_tagged(std::string tag, Response& o
     return {};
 }
 
-std::expected<void, ReadError> Parser::parse_untagged(Response& out) {
-    const auto got = read(LexMode::normal);
-    if (!got) {
-        return std::unexpected(got.error());
+// "* 172 EXISTS", "* 12 FETCH (...)": a number, then what it counts or
+// describes. The number is a sequence number for FETCH and EXPUNGE, and a
+// total for EXISTS and RECENT.
+std::expected<void, ReadError> Parser::parse_numbered(std::uint32_t number, Response& out) {
+    const auto name = read(LexMode::normal);
+    if (!name) {
+        return std::unexpected(name.error());
     }
-    if (*got == ReadStatus::end) {
+    if (*name == ReadStatus::end || !token_.is(TokenKind::atom)) {
         return std::unexpected(malformed());
     }
 
-    if (token_.is(TokenKind::number)) {
-        const auto number = static_cast<std::uint32_t>(token_.number);
-        const auto name = read(LexMode::normal);
-        if (!name) {
-            return std::unexpected(name.error());
+    if (token_.is_atom("FETCH")) {
+        auto fetch = parse_fetch(number);
+        if (!fetch) {
+            return std::unexpected(fetch.error());
         }
-        if (*name == ReadStatus::end || !token_.is(TokenKind::atom)) {
-            return std::unexpected(malformed());
-        }
-        if (token_.is_atom("FETCH")) {
-            auto fetch = parse_fetch(number);
-            if (!fetch) {
-                return std::unexpected(fetch.error());
-            }
-            out = UntaggedResponse{std::move(*fetch)};
-            return {};
-        }
-        if (token_.is_atom("EXISTS") || token_.is_atom("RECENT") || token_.is_atom("EXPUNGE")) {
-            MailboxCount count;
-            count.number = number;
-            count.kind = token_.is_atom("EXISTS")   ? MailboxCount::Kind::exists
-                         : token_.is_atom("RECENT") ? MailboxCount::Kind::recent
-                                                    : MailboxCount::Kind::expunge;
-            if (auto end = expect_end_of_line(); !end) {
-                return std::unexpected(end.error());
-            }
-            out = UntaggedResponse{count};
-            return {};
-        }
-        auto unknown = parse_unknown(std::to_string(number) + " " + token_.raw);
-        if (!unknown) {
-            return std::unexpected(unknown.error());
-        }
-        out = UntaggedResponse{std::move(*unknown)};
+        out = UntaggedResponse{std::move(*fetch)};
         return {};
     }
 
-    if (!token_.is(TokenKind::atom)) {
-        return std::unexpected(malformed());
+    if (token_.is_atom("EXISTS") || token_.is_atom("RECENT") || token_.is_atom("EXPUNGE")) {
+        MailboxCount count;
+        count.number = number;
+        count.kind = token_.is_atom("EXISTS")    ? MailboxCount::Kind::exists
+                     : token_.is_atom("RECENT")  ? MailboxCount::Kind::recent
+                                                 : MailboxCount::Kind::expunge;
+        if (auto end = expect_end_of_line(); !end) {
+            return std::unexpected(end.error());
+        }
+        out = UntaggedResponse{count};
+        return {};
     }
 
+    // Keep the number with the name, so "* 5 XSOMETHING" is recognisable
+    // later as having been about message 5.
+    auto unknown = parse_unknown(std::to_string(number) + " " + token_.raw);
+    if (!unknown) {
+        return std::unexpected(unknown.error());
+    }
+    out = UntaggedResponse{std::move(*unknown)};
+    return {};
+}
+
+// "* OK ...", "* LIST ...", "* CAPABILITY ...": a name, then whatever that
+// name's grammar says. Each branch consumes its whole line, including CRLF.
+std::expected<void, ReadError> Parser::parse_named(Response& out) {
     if (const std::optional<StatusKind> kind = status_keyword(token_)) {
         auto status = parse_status(*kind);
         if (!status) {
@@ -476,12 +473,33 @@ std::expected<void, ReadError> Parser::parse_untagged(Response& out) {
         return {};
     }
 
+    // An extension, or something newer than Crimson. Kept, never refused.
     auto unknown = parse_unknown(token_.raw);
     if (!unknown) {
         return std::unexpected(unknown.error());
     }
     out = UntaggedResponse{std::move(*unknown)};
     return {};
+}
+
+// An untagged response has one of two shapes after the "*": a number and a
+// name, or a name on its own.
+std::expected<void, ReadError> Parser::parse_untagged(Response& out) {
+    const auto got = read(LexMode::normal);
+    if (!got) {
+        return std::unexpected(got.error());
+    }
+    if (*got == ReadStatus::end) {
+        return std::unexpected(malformed());
+    }
+
+    if (token_.is(TokenKind::number)) {
+        return parse_numbered(static_cast<std::uint32_t>(token_.number), out);
+    }
+    if (!token_.is(TokenKind::atom)) {
+        return std::unexpected(malformed());
+    }
+    return parse_named(out);
 }
 
 std::expected<StatusResponse, ReadError> Parser::parse_status(StatusKind kind) {
