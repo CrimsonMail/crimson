@@ -18,8 +18,12 @@ if /I "%TARGET%"=="imap_lexer" (
   set "PROJECT=tests\fuzz\Crimson.Fuzz.ImapLexer.vcxproj"
   set "EXE=crimson-fuzz-imap-lexer.exe"
   set "SEEDS=tests\fuzz\corpus\imap_lexer tests\imap\fixtures"
+) else if /I "%TARGET%"=="imap_parser" (
+  set "PROJECT=tests\fuzz\Crimson.Fuzz.ImapParser.vcxproj"
+  set "EXE=crimson-fuzz-imap-parser.exe"
+  set "SEEDS=tests\fuzz\corpus\imap_parser tests\fuzz\corpus\imap_lexer tests\imap\fixtures"
 ) else (
-  echo Usage: scripts\fuzz.cmd imap_lexer [seconds]
+  echo Usage: scripts\fuzz.cmd imap_lexer^|imap_parser [seconds]
   exit /b 2
 )
 

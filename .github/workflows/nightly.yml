@@ -80,21 +80,28 @@ jobs:
   # caused it is kept as an artifact so the failure can be reproduced exactly:
   #     x64\Release\crimson-fuzz-imap-lexer.exe <downloaded-crash-file>
   fuzz:
-    name: Fuzz the IMAP tokenizer
+    name: Fuzz ${{ matrix.target }}
     runs-on: windows-2025
+
+    strategy:
+      # One failing target must not stop the others from running: a crash in
+      # the parser says nothing about the tokenizer.
+      fail-fast: false
+      matrix:
+        target: [imap_lexer, imap_parser]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Fuzz for ten minutes
         shell: cmd
-        run: call scripts\fuzz.cmd imap_lexer 600
+        run: call scripts\fuzz.cmd ${{ matrix.target }} 600
 
       - name: Keep the input that crashed it
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: imap-lexer-crash
-          path: obj/fuzz/imap_lexer/artifacts/
+          name: ${{ matrix.target }}-crash
+          path: obj/fuzz/${{ matrix.target }}/artifacts/
           if-no-files-found: ignore
           retention-days: 30
